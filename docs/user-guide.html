@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<!--
+  Canonical print-ready HTML document template.
+  Source of truth for ALL standalone HTML docs authored under ~/Developer
+  (reports, specs, notes, briefs, study guides, checklists, reference).
+
+  Referenced by ~/.claude/CLAUDE.md > Document Format.
+
+  RULES FOR CLAUDE:
+  - Use the <style> block, the #theme-toggle button, and the theme <script>
+    VERBATIM. Do not restyle, rename variables, reorder, or regenerate them
+    from memory. They must look and behave identically in every document.
+  - Only replace the <title>, the visible content between the markers, and
+    (if needed) ADD new content-specific classes at the END of the <style>
+    block. Never edit the theme variables or the toggle chrome.
+  - The base rules already encode the house conventions: serif body, system-sans
+    headings, minimal color, page-break-friendly, no external assets.
+  - No em dashes in the content. Preserve any verbatim quoted text exactly.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The advocacy workflow</title>
+<style>
+  /* ===== THEME CHROME — DO NOT EDIT (keep identical across all docs) ===== */
+  :root {
+    --bg: #fff;
+    --text: #1a1a1a;
+    --heading: #111;
+    --muted: #555;
+    --muted2: #444;
+    --faint: #666;
+    --rule: #ddd;
+    --dot: #e2e2e2;
+    --code-bg: #f2f2f2;
+    --setup-bg: #f6f6f4;
+    --setup-border: #e0e0dc;
+    --watch-bg: #fbf7ec;
+    --watch-border: #b58900;
+    --btn-bg: #f0f0ee;
+    --btn-border: #ccc;
+    --accent: #c9a227;
+  }
+  html[data-theme="dark"] {
+    --bg: #17191d;
+    --text: #cfd2d6;
+    --heading: #f1f2f4;
+    --muted: #9aa0a6;
+    --muted2: #b3b8bd;
+    --faint: #888e94;
+    --rule: #34383e;
+    --dot: #2b2f34;
+    --code-bg: #262a30;
+    --setup-bg: #1e2126;
+    --setup-border: #34383e;
+    --watch-bg: #241f14;
+    --watch-border: #c9a227;
+    --btn-bg: #23262b;
+    --btn-border: #3a3f45;
+  }
+  #theme-toggle {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    font-family: system-ui, sans-serif;
+    font-size: 0.85rem;
+    color: var(--text);
+    background: var(--btn-bg);
+    border: 1px solid var(--btn-border);
+    border-radius: 6px;
+    padding: 0.4rem 0.7rem;
+    cursor: pointer;
+    z-index: 10;
+  }
+  #theme-toggle:hover { border-color: var(--faint); }
+  /* ===== END THEME CHROME ===== */
+
+  /* ===== BASE DOCUMENT STYLE (house conventions) ===== */
+  body {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 16px;
+    line-height: 1.55;
+    color: var(--text);
+    max-width: 46rem;
+    margin: 2.5rem auto;
+    padding: 0 1.5rem;
+    background: var(--bg);
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  h1, h2, h3 {
+    font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    line-height: 1.25;
+    color: var(--heading);
+  }
+  h1 { font-size: 1.7rem; margin: 0 0 0.25rem; }
+  h2 {
+    font-size: 1.2rem;
+    margin: 2.2rem 0 0.6rem;
+    padding-bottom: 0.3rem;
+    border-bottom: 1px solid var(--rule);
+    page-break-after: avoid;
+  }
+  h3 { font-size: 1.02rem; margin: 1.5rem 0 0.4rem; }
+  p, li { color: var(--text); }
+  a { color: inherit; text-decoration: underline; text-decoration-color: var(--accent); }
+  code {
+    font-family: 'SF Mono', ui-monospace, Menlo, monospace;
+    font-size: 0.85em;
+    background: var(--code-bg);
+    padding: 0.1em 0.35em;
+    border-radius: 3px;
+  }
+  pre {
+    background: var(--code-bg);
+    padding: 0.9rem 1.1rem;
+    border-radius: 6px;
+    overflow-x: auto;
+    page-break-inside: avoid;
+  }
+  pre code { background: none; padding: 0; }
+  blockquote {
+    border-left: 3px solid var(--watch-border);
+    background: var(--watch-bg);
+    margin: 0.8rem 0;
+    padding: 0.7rem 0.9rem;
+    page-break-inside: avoid;
+  }
+  table { border-collapse: collapse; width: 100%; margin: 0.8rem 0; page-break-inside: avoid; }
+  th, td { border: 1px solid var(--rule); padding: 0.45rem 0.7rem; text-align: left; font-size: 0.95rem; }
+  th { font-family: system-ui, sans-serif; }
+  .meta { margin-top: 2.5rem; color: var(--faint); font-size: 0.85rem; font-family: system-ui, sans-serif; }
+  /* ===== END BASE ===== */
+
+  /* ===== PRINT: force clean light, hide the toggle ===== */
+  @media print {
+    :root { --bg:#fff; --text:#1a1a1a; --heading:#111; --setup-bg:#f6f6f4; --watch-bg:#fbf7ec; --code-bg:#f2f2f2; }
+    body { margin: 0; font-size: 12pt; }
+    blockquote, pre { background: none; }
+    #theme-toggle { display: none; }
+  }
+
+  /* ===== Document-specific styles may be ADDED below this line ===== */
+  /* ===== user guide specifics ===== */
+  .lede { font-size: 1.02rem; color: var(--muted2); margin: 0 0 1.4rem; }
+  .stage { border-left: 3px solid var(--accent); padding-left: 1rem; margin: 1.8rem 0; page-break-inside: avoid; }
+  .stage h3 { margin-top: 0; }
+  .who { font-family: system-ui, sans-serif; font-size: .72rem; font-weight: 700; letter-spacing: .06em;
+         text-transform: uppercase; color: var(--faint); display: inline-block;
+         border: 1px solid var(--rule); border-radius: 3px; padding: .1rem .4rem; margin-right: .4rem; }
+  .io { width: 100%; margin: .6rem 0; font-size: .9rem; }
+  .io th { width: 6.5rem; text-align: left; vertical-align: top; font-family: system-ui, sans-serif;
+           font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; color: var(--faint);
+           border: none; padding: .25rem .6rem .25rem 0; }
+  .io td { border: none; padding: .25rem 0; }
+  dl.gloss dt { font-family: system-ui, sans-serif; font-weight: 700; font-size: .92rem; margin-top: .8rem; }
+  dl.gloss dd { margin: .15rem 0 0 0; color: var(--muted2); }
+  figure { margin: 1.6rem 0; page-break-inside: avoid; }
+  figure svg { width: 100%; height: auto; display: block; }
+  figcaption { font-family: system-ui, sans-serif; font-size: .82rem; color: var(--faint); margin-top: .5rem; }
+  .fig text { font-family: system-ui, -apple-system, sans-serif; fill: var(--text); }
+  .fig .lbl { font-size: 11px; font-weight: 600; fill: var(--heading); }
+  .fig .sm { font-size: 9.5px; fill: var(--muted); }
+  .fig .mono { font-family: 'SF Mono', ui-monospace, Menlo, monospace; font-size: 9.5px; fill: var(--muted2); }
+  .fig .cap { font-size: 9px; font-weight: 700; letter-spacing: .06em; fill: var(--faint); }
+  .fig .bx { fill: var(--setup-bg); stroke: var(--setup-border); stroke-width: 1; }
+  .fig .gt { fill: var(--watch-bg); stroke: var(--watch-border); stroke-width: 1.2; }
+  .fig .ar { stroke: var(--faint); stroke-width: 1.3; fill: none; }
+  .fig .ah { fill: var(--faint); }
+  .toc { font-family: system-ui, sans-serif; font-size: .9rem; }
+  .toc a { text-decoration: none; }
+  .toc li { margin: .2rem 0; }
+
+</style>
+</head>
+<body>
+
+<button id="theme-toggle" type="button" aria-label="Toggle dark mode">Light mode</button>
+
+<!-- ===== CONTENT START ===== -->
+
+<h1>The advocacy workflow</h1>
+<p class="lede">Every command, every file, every Asana action, from an empty folder to a finished
+campaign. Written to be followed by someone who has never run any of it.</p>
+
+<p><span class="who">Read this first</span> Three skills do the work and they run in a fixed order:
+<code>project-hub</code> sets the project up, <code>advocacy-intake</code> decides it is worth
+content, <code>advocacy-cycle</code> produces the content. Nothing skips ahead. Each one refuses to
+run if the one before it has not.</p>
+
+<h2 id="toc">Contents</h2>
+<ol class="toc">
+  <li><a href="#prereq">Before you start</a></li>
+  <li><a href="#gloss">Words you need first</a></li>
+  <li><a href="#map">The whole run at a glance</a></li>
+  <li><a href="#stages">The run, stage by stage</a></li>
+  <li><a href="#tree">Where every file ends up</a></li>
+  <li><a href="#cmds">Command reference</a></li>
+  <li><a href="#asana">Asana reference</a></li>
+  <li><a href="#faq">Good to know</a></li>
+</ol>
+
+<h2 id="prereq">Before you start</h2>
+
+<p>Do all of this once, per machine.</p>
+
+<pre><code># 1. Install both plugins, inside Claude Code. project-workflow first: every skill here needs it.
+claude
+/plugin marketplace add samgutentag-deepgram/project-workflow
+/plugin install project-workflow@project-workflow
+/plugin marketplace add samgutentag-deepgram/advocacy-workflow
+/plugin install advocacy-workflow@advocacy-workflow
+
+# 2. Video rendering only. Skip if you are not making videos.
+brew install uv ffmpeg
+export DEEPGRAM_API_KEY=...                  # or put it in a .env file</code></pre>
+
+<p>You also need the <strong>Asana connector enabled in Claude Code</strong>. Check it before you
+start: ask Claude "list my Asana workspaces". If it cannot, stop and connect it. Every stage after
+the first writes to Asana.</p>
+
+<h3>The first-run interview</h3>
+<p>The first time you run any advocacy command, it checks
+<code>~/.claude/advocacy-workflow.yml</code>. If anything is missing it interviews you, writes the
+file, then carries on with whatever you originally asked. It never asks about a field that is
+already filled.</p>
+<p>To see where you stand at any time:</p>
+<pre><code>PLUGIN=$(ls -d ~/.claude/plugins/cache/advocacy-workflow/advocacy-workflow/*/ | tail -1)
+python3 "$PLUGIN/skills/advocacy-intake/scripts/config.py" --missing
+python3 "$PLUGIN/skills/advocacy-intake/scripts/config.py" --show
+python3 "$PLUGIN/skills/advocacy-intake/scripts/config.py" --path</code></pre>
+<p><code>--missing</code> exits non-zero while anything is unanswered, so you can gate a script on
+it. Four settings, one of which is a fact about your Asana workspace:</p>
+<table>
+  <tr><th>Setting</th><th>Where the answer comes from</th></tr>
+  <tr><td><code>asana_workspace</code></td><td>Ask Claude to list your Asana workspaces</td></tr>
+  <tr><td><code>lab_root</code></td><td>Defaults to <code>~/LABS</code></td></tr>
+  <tr><td><code>voice_personal</code></td><td>Defaults to <code>personal-style</code></td></tr>
+  <tr><td><code>voice_corporate</code></td><td>Defaults to <code>corporate-style</code></td></tr>
+</table>
+<p>The file is one person's setup on one machine, reused by every campaign. Safe to edit by hand.</p>
+
+<h3>The lab repo convention</h3>
+<p>Every campaign runs inside a <strong>lab repo</strong>: a private working repo named
+<code>&lt;thing&gt;-lab</code>, kept under <code>lab_root</code>. The <code>-lab</code> suffix is the
+whole point. A repo without it is one you might publish by accident, and these repos hold
+unpublished drafts and a build ledger that should never ship. The clean public repo is created
+separately at the very end, and the lab repo never becomes it.</p>
+
+<h3>Your own writing voice</h3>
+<p><code>personal-style</code> and <code>corporate-style</code> ship with the plugin and are written
+to work for anyone. If you have your own voice skill, name it in <code>voice_personal</code> and it
+is used instead. That field is also how you ghostwrite: point it at somebody else's voice skill and
+the drafts come out in their voice, not yours.</p>
+
+<p><strong>Start a new Claude Code session after running <code>setup.sh</code>.</strong> Skills load
+at session start and will not appear in a session that was already open.</p>
+
+<h2 id="gloss">Words you need first</h2>
+
+<dl class="gloss">
+  <dt>Lab repo</dt>
+  <dd>The private working repo, always named <code>&lt;thing&gt;-lab</code> and kept in
+      <code>~/LABS/</code>. It never goes public. A separate clean repo is published at the end.</dd>
+
+  <dt>Hub</dt>
+  <dd>The <code>.hub/</code> directory in a lab repo. Holds <code>index.html</code> (the page you
+      open), <code>hub.yml</code> (config and the Asana link), <code>ledger.md</code>, and
+      <code>assets/</code>.</dd>
+
+  <dt>Ledger</dt>
+  <dd><code>.hub/ledger.md</code>. An append-only record of what happened while building: dead ends,
+      symptoms before you knew the cause, alternatives that lost. Every later claim traces back to
+      it. <strong>It cannot be backfilled.</strong></dd>
+
+  <dt>Capture plan</dt>
+  <dd><code>.hub/capture-plan.md</code>. What you intend to film or screenshot. Filled in
+      <em>before</em> the project first works, because that moment happens once.</dd>
+
+  <dt>Surface</dt>
+  <dd>One place content gets published. There are seven, across two branches. A surface is either a
+      blog or a derivative.</dd>
+
+  <dt>Branch</dt>
+  <dd><code>personal</code> or <code>corporate</code>. Peers, same length. Only difference: video
+      comes off the personal blog only.</dd>
+
+  <dt>Canonical</dt>
+  <dd>The one version of a piece that you review properly. Everything else derives from it.</dd>
+
+  <dt>Variant</dt>
+  <dd>A canonical rewritten in one of the four styles. Used to repost the same material weeks apart.
+      A variant changes framing, never a claim.</dd>
+
+  <dt>Style</dt>
+  <dd>One of <code>technical</code>, <code>build-it-too</code>, <code>fun</code>,
+      <code>user-demo</code>. Defined in
+      the plugin's <code>skills/script-to-video/styles/</code>. All four are used on every canonical,
+      every time.</dd>
+
+  <dt>Gate</dt>
+  <dd>A review checkpoint, A through D. You pass a gate by completing its task in Asana. Nothing
+      downstream is written until you do.</dd>
+
+  <dt>Beat</dt>
+  <dd>An inline HTML comment inside a draft that scaffolds one section: its name, word budget, the
+      job it does, and the facts it may use. You write into it and delete it when the section lands.
+      Beats still in a file are sections still unwritten.</dd>
+
+  <dt>advocacy.md</dt>
+  <dd><code>advocacy/advocacy.md</code>. The frozen claim, the reader, and the surfaces. Written once
+      by <code>advocacy-intake</code>. Never edited afterwards.</dd>
+
+  <dt>notes.md</dt>
+  <dd><code>advocacy/notes.md</code>. Every verified fact with a citation. The only source drafts may
+      project from. If it is not in here or in a cited source, it does not ship.</dd>
+
+  <dt>Base layer</dt>
+  <dd>A placeholder video with a synthetic voice, produced by <code>script-to-video</code>. It exists
+      to fix timing and structure. You re-record it with your own voice and screens.</dd>
+
+  <dt>Day 0</dt>
+  <dd>The date the campaign counts from. Asked once, at promotion. Everything is dated day 0 plus an
+      offset, and the project runs to day 0 plus 90.</dd>
+
+  <dt>Prep spine</dt>
+  <dd>The four setup tasks filed at promotion: clear the publishing gate, add a LICENSE, verify every
+      number, record the campaign footage. Which ones appear depends on the repo.</dd>
+</dl>
+
+<h2 id="map">The whole run at a glance</h2>
+
+<figure>
+<svg class="fig" viewBox="0 0 660 250" role="img" aria-label="The three skills in order, with what each produces">
+  <rect class="bx" x="8" y="30" width="196" height="76" rx="6"/>
+  <text class="cap" x="18" y="48">STEP 1</text>
+  <text class="lbl" x="18" y="66">/project-hub init</text>
+  <text class="sm" x="18" y="82">.hub/ + Asana project</text>
+  <text class="sm" x="18" y="96">four exploration tasks</text>
+
+  <rect class="bx" x="232" y="30" width="196" height="76" rx="6"/>
+  <text class="cap" x="242" y="48">STEP 2</text>
+  <text class="lbl" x="242" y="66">/advocacy-intake</text>
+  <text class="sm" x="242" y="82">advocacy/advocacy.md</text>
+  <text class="sm" x="242" y="96">dates + gates A+B</text>
+
+  <rect class="bx" x="456" y="30" width="196" height="76" rx="6"/>
+  <text class="cap" x="466" y="48">STEP 3</text>
+  <text class="lbl" x="466" y="66">/advocacy-cycle</text>
+  <text class="sm" x="466" y="82">advocacy/content/ tree</text>
+  <text class="sm" x="466" y="96">gates C+D, 27 files</text>
+
+  <path class="ar" d="M204,68 H232" marker-end="url(#gah)"/>
+  <path class="ar" d="M428,68 H456" marker-end="url(#gah)"/>
+  <defs><marker id="gah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6"
+    orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 z" class="ah"/></marker></defs>
+
+  <text class="sm" x="8" y="132">Build and capture continuously between step 1 and step 2.</text>
+
+  <rect class="gt" x="8" y="152" width="644" height="30" rx="15"/>
+  <text class="lbl" x="330" y="171" text-anchor="middle">Each skill refuses to run until the one before it has finished</text>
+
+  <text class="mono" x="8" y="206">/project-hub init      needs  a repo with code in it</text>
+  <text class="mono" x="8" y="222">/advocacy-intake       needs  .hub/hub.yml with an asana key</text>
+  <text class="mono" x="8" y="238">/advocacy-cycle        needs  advocacy/advocacy.md</text>
+</svg>
+<figcaption>Each skill checks for the previous one's output and stops with a message naming what to
+run instead. You cannot get out of order by accident.</figcaption>
+</figure>
+
+<h2 id="stages">The run, stage by stage</h2>
+
+<div class="stage">
+<h3>1. Create the lab repo</h3>
+<pre><code>mkdir ~/LABS/thing-lab &amp;&amp; cd $_
+git init
+claude</code></pre>
+<table class="io">
+  <tr><th>You do</th><td>Build. Commit as you go. Keep going until there is real code to read.</td></tr>
+  <tr><th>Output</th><td>A git repo with files in it.</td></tr>
+</table>
+<p><strong>The <code>-lab</code> suffix is not optional.</strong> A repo without it is one you might
+publish by accident.</p>
+</div>
+
+<div class="stage">
+<h3>2. Create the hub</h3>
+<pre><code>/init
+/project-hub init</code></pre>
+<table class="io">
+  <tr><th>Needs</th><td>Code in the repo. <code>/init</code> reads it, so it must exist first.</td></tr>
+  <tr><th>Asks</th><td>When should this be working or dropped. Default is one week.</td></tr>
+  <tr><th>Output</th><td><code>.hub/index.html</code>, <code>.hub/hub.yml</code>,
+      <code>.hub/ledger.md</code>, <code>.hub/assets/</code>, <code>.hub/capture-plan.md</code>,
+      and four exploration tasks in a new Asana project.</td></tr>
+  <tr><th>Then you</th><td>Build. There is nothing to do in Asana by hand.</td></tr>
+</table>
+<p>Safe to re-run. It never touches a ledger or overwrites an authored value.</p>
+</div>
+
+<div class="stage">
+<h3>3. Build, and capture as you go</h3>
+<pre><code>/project-hub capture</code></pre>
+<table class="io">
+  <tr><th>When</th><td>Every dead end, surprise, or change of mind. The same turn it happens, not at
+      wrap-up.</td></tr>
+  <tr><th>Output</th><td>An appended entry in <code>.hub/ledger.md</code>.</td></tr>
+</table>
+<p><strong>Fill in <code>.hub/capture-plan.md</code> before the project first works.</strong> Tripod
+up, film the failures too. That moment happens once.</p>
+</div>
+
+<div class="stage">
+<h3>4. Promote it to a campaign</h3>
+<pre><code>cd ~/LABS/thing-lab &amp;&amp; claude
+/advocacy-intake</code></pre>
+<table class="io">
+  <tr><th>When</th><td>Once it works and you have decided it is content.</td></tr>
+  <tr><th>Needs</th><td><code>.hub/hub.yml</code> with an <code>asana</code> key. Without it the
+      skill refuses and tells you to run <code>/project-hub init</code>.</td></tr>
+  <tr><th>Asks</th><td>Which surfaces to keep, and what day 0 is. Declining a surface is a real
+      answer.</td></tr>
+  <tr><th>Output</th><td><code>advocacy/advocacy.md</code>, written once and frozen.</td></tr>
+  <tr><th>In Asana</th><td>Dates set to day 0 through day 0 plus 90, which is what marks the
+      project a campaign, and the prep spine plus gates A and B are filed.</td></tr>
+</table>
+<p>Keeping a derivative without its branch's blog is refused. A thread has nothing to derive from
+without its blog.</p>
+</div>
+
+<div class="stage">
+<h3>5. Start the cycle</h3>
+<pre><code>/advocacy-cycle init</code></pre>
+<table class="io">
+  <tr><th>Needs</th><td><code>advocacy/advocacy.md</code>. Refuses without it.</td></tr>
+  <tr><th>Output</th><td><code>advocacy/notes.md</code> (every fact, cited, out of the ledger),
+      <code>advocacy/notes.companion.md</code>, and the empty
+      <code>advocacy/content/</code> tree.</td></tr>
+  <tr><th>In Asana</th><td>Gates C and D filed: 5 parent tasks with 4 subtasks each, plus the render
+      batch with 4.</td></tr>
+  <tr><th>Also</th><td><code>advocacy/renders/</code> added to <code>.gitignore</code>.</td></tr>
+</table>
+</div>
+
+<div class="stage">
+<h3>6. Gate A, the two blogs</h3>
+<pre><code>/advocacy-cycle draft personal_blog
+/advocacy-cycle draft corporate_blog</code></pre>
+<table class="io">
+  <tr><th>Output</th><td><code>content/personal/blog.md</code> and
+      <code>content/corporate/blog.md</code>, each full of inline beat comments.</td></tr>
+  <tr><th>You do</th><td>Edit until it is publish ready. Delete each beat comment as you finish its
+      section.</td></tr>
+  <tr><th>To pass</th><td>Complete <strong>Gate A: Personal blog, edit to publish ready</strong> in
+      Asana. Same for the corporate one.</td></tr>
+</table>
+<p><span class="who">Important</span> You never edit a status field by hand. The skill reads the
+board and writes the answer back into the file. Asana is the source of truth.</p>
+</div>
+
+<div class="stage">
+<h3>7. Gate B, the five canonicals</h3>
+<pre><code>/advocacy-cycle draft personal_thread
+/advocacy-cycle draft personal_linkedin
+/advocacy-cycle draft personal_video_script
+/advocacy-cycle draft corporate_thread
+/advocacy-cycle draft corporate_linkedin</code></pre>
+<table class="io">
+  <tr><th>Needs</th><td>That branch's Gate A blog task complete. Otherwise the skill stops and names
+      what it is waiting on.</td></tr>
+  <tr><th>Output</th><td>Five files, one per surface, at the top of each surface's
+      directory.</td></tr>
+  <tr><th>To pass</th><td>Complete each <strong>Gate B: &lt;surface&gt;, edit to publish ready</strong>
+      task.</td></tr>
+</table>
+</div>
+
+<div class="stage">
+<h3>8. Gate C, the twenty variants</h3>
+<pre><code>/advocacy-cycle variants personal_thread
+/advocacy-cycle variants personal_linkedin
+/advocacy-cycle variants personal_video_script
+/advocacy-cycle variants corporate_thread
+/advocacy-cycle variants corporate_linkedin</code></pre>
+<table class="io">
+  <tr><th>Needs</th><td>That canonical's Gate B task complete.</td></tr>
+  <tr><th>Output</th><td>Four files per surface in <code>variants/</code>, one per style. Twenty
+      total.</td></tr>
+  <tr><th>You do</th><td>A light pass. These are staggered reposts of approved material.</td></tr>
+  <tr><th>To pass</th><td>Complete each <strong>Gate C: &lt;surface&gt;, &lt;style&gt; variant</strong>
+      subtask.</td></tr>
+</table>
+</div>
+
+<div class="stage">
+<h3>9. Gate D, the four videos</h3>
+<pre><code>/advocacy-cycle render</code></pre>
+<table class="io">
+  <tr><th>Needs</th><td>The four <code>personal_video_script</code> variants approved, and
+      <code>DEEPGRAM_API_KEY</code> set.</td></tr>
+  <tr><th>Output</th><td>Four horizontal mp4s in <code>advocacy/renders/</code>, beside the JSON that
+      produced them. Gitignored.</td></tr>
+  <tr><th>You do</th><td>Watch them. Keep the framing that works. Re-record with your own voice and
+      screens.</td></tr>
+  <tr><th>To pass</th><td>Complete the <strong>Gate D</strong> subtasks.</td></tr>
+</table>
+<p>A failed take does not stop the batch. The rest render, failures are listed at the end with a
+retry command, and the exit code is non-zero. Check the summary rather than assuming a clean run.</p>
+</div>
+
+<div class="stage">
+<h3>10. Check everything</h3>
+<pre><code>/advocacy-cycle check</code></pre>
+<table class="io">
+  <tr><th>Runs</th><td>Five checks: <code>citations</code>, <code>facts</code>, <code>limits</code>,
+      <code>links</code>, <code>beats</code>.</td></tr>
+  <tr><th>Output</th><td>A list of findings with the file and location of each. An empty list is a
+      pass.</td></tr>
+</table>
+<p>Run this before you publish anything. <code>citations</code> resolves every
+<code>file.py:120-140</code> reference against the repo, which is what stops you filming code that
+has moved.</p>
+</div>
+
+<div class="stage">
+<h3>11. Ship each piece</h3>
+<pre><code>/advocacy-cycle ship personal_blog</code></pre>
+<table class="io">
+  <tr><th>You do</th><td>Publish the piece yourself, then give the skill the live URL.</td></tr>
+  <tr><th>Output</th><td><code>published:</code> set in that file's frontmatter, and the file synced
+      from the live page.</td></tr>
+</table>
+<p><strong>Once a piece is live, the site is the source of truth for its own copy.</strong> The repo
+file gets updated from the published page, never the other way round.</p>
+</div>
+
+<div class="stage">
+<h3>12. The public flip</h3>
+<pre><code>gh repo create thing --public</code></pre>
+<table class="io">
+  <tr><th>Before</th><td>Decide the chapters. Rewrite history to build order. Strip
+      <code>.hub/</code> and <code>advocacy/</code> from <strong>every</strong> commit, not just the
+      tip.</td></tr>
+  <tr><th>Check</th><td>Inspect the tree for <code>.hub</code> before you push, not after.</td></tr>
+  <tr><th>After</th><td>The lab repo is finished. Keep it forever, never work in it again except to
+      write content from its ledger.</td></tr>
+</table>
+<p>One way only. The lab repo never goes public and the public repo never comes back. Pull requests
+on the public repo are applied by hand, there.</p>
+</div>
+
+<h2 id="tree">Where every file ends up</h2>
+
+<figure>
+<svg class="fig" viewBox="0 0 660 330" role="img" aria-label="The advocacy directory, showing which gate owns which depth">
+  <rect class="bx" x="8" y="8" width="380" height="314" rx="6"/>
+  <text class="mono" x="22" y="30">advocacy/</text>
+  <text class="mono" x="22" y="48">  advocacy.md</text>
+  <text class="mono" x="22" y="64">  notes.md</text>
+  <text class="mono" x="22" y="80">  notes.companion.md</text>
+  <text class="mono" x="22" y="102">  content/personal/</text>
+  <text class="mono" x="22" y="118">    blog.md</text>
+  <text class="mono" x="22" y="134">    thread/thread.md</text>
+  <text class="mono" x="22" y="150">    thread/variants/thread-technical.md</text>
+  <text class="mono" x="22" y="166">    thread/variants/thread-fun.md</text>
+  <text class="mono" x="22" y="182">    linkedin/linkedin.md</text>
+  <text class="mono" x="22" y="198">    video-script/video-script.md</text>
+  <text class="mono" x="22" y="220">  content/corporate/</text>
+  <text class="mono" x="22" y="236">    blog.md</text>
+  <text class="mono" x="22" y="252">    thread/thread.md</text>
+  <text class="mono" x="22" y="274">  renders/</text>
+  <text class="mono" x="22" y="290">  assets/</text>
+  <text class="mono" x="22" y="306">  review/</text>
+
+  <path class="ar" d="M300,48 H420"/><text class="sm" x="426" y="52">frozen. intake writes it once</text>
+  <path class="ar" d="M300,64 H420"/><text class="sm" x="426" y="68">every fact, with a citation</text>
+  <path class="ar" d="M300,118 H420"/><text class="sm" x="426" y="122">GATE A. flat, no variants</text>
+  <path class="ar" d="M300,134 H420"/><text class="sm" x="426" y="138">GATE B. top of its directory</text>
+  <path class="ar" d="M300,158 H420"/><text class="sm" x="426" y="162">GATE C. one level down</text>
+  <path class="ar" d="M300,274 H420"/><text class="sm" x="426" y="278">GATE D. gitignored</text>
+  <path class="ar" d="M300,290 H420"/><text class="sm" x="426" y="294">figures you authored</text>
+  <path class="ar" d="M300,306 H420"/><text class="sm" x="426" y="310">critique, never a draft</text>
+</svg>
+<figcaption>Directory depth tells you the gate. Top level of a surface directory is Gate B, one level
+down in <code>variants/</code> is Gate C.</figcaption>
+</figure>
+
+<h3>The seven surfaces</h3>
+<table>
+  <tr><th>Key</th><th>Branch</th><th>Limit</th><th>Variants</th></tr>
+  <tr><td><code>personal_blog</code></td><td>personal</td><td>1,200 words</td><td>none</td></tr>
+  <tr><td><code>personal_thread</code></td><td>personal</td><td>280 chars per post</td><td>4</td></tr>
+  <tr><td><code>personal_linkedin</code></td><td>personal</td><td>3,000 chars</td><td>4</td></tr>
+  <tr><td><code>personal_video_script</code></td><td>personal</td><td>15 min</td><td>4</td></tr>
+  <tr><td><code>corporate_blog</code></td><td>corporate</td><td>1,500 words</td><td>none</td></tr>
+  <tr><td><code>corporate_thread</code></td><td>corporate</td><td>280 chars per post</td><td>4</td></tr>
+  <tr><td><code>corporate_linkedin</code></td><td>corporate</td><td>3,000 chars</td><td>4</td></tr>
+</table>
+<p>A blog has no variants because it is the source they come from. One thread canonical covers X,
+Bluesky and Threads. X bills every URL at 23 characters no matter how long it is, and allows two
+links per post.</p>
+
+<h2 id="cmds">Command reference</h2>
+
+<table>
+  <tr><th>Command</th><th>Run when</th><th>Writes</th></tr>
+  <tr><td><code>/project-hub init</code></td><td>Code exists</td><td><code>.hub/</code>, Asana project</td></tr>
+  <tr><td><code>/project-hub capture</code></td><td>Every dead end</td><td><code>.hub/ledger.md</code></td></tr>
+  <tr><td><code>/project-hub</code></td><td>After work lands</td><td><code>.hub/index.html</code></td></tr>
+  <tr><td><code>/advocacy-intake</code></td><td>It is content</td><td><code>advocacy/advocacy.md</code>, gates A+B</td></tr>
+  <tr><td><code>/advocacy-cycle</code></td><td>Anytime</td><td>nothing. Prints status</td></tr>
+  <tr><td><code>/advocacy-cycle init</code></td><td>After intake</td><td><code>notes.md</code>, <code>content/</code>, gates C+D</td></tr>
+  <tr><td><code>/advocacy-cycle draft &lt;surface&gt;</code></td><td>Parent approved</td><td>one canonical or blog</td></tr>
+  <tr><td><code>/advocacy-cycle variants &lt;surface&gt;</code></td><td>Canonical approved</td><td>four style variants</td></tr>
+  <tr><td><code>/advocacy-cycle render</code></td><td>Video variants approved</td><td><code>renders/</code></td></tr>
+  <tr><td><code>/advocacy-cycle check</code></td><td>Before publishing</td><td>nothing. Prints findings</td></tr>
+  <tr><td><code>/advocacy-cycle ship &lt;surface&gt;</code></td><td>Piece is live</td><td><code>published:</code> frontmatter</td></tr>
+</table>
+
+<h3>Rendering videos outside Claude</h3>
+<pre><code>uv venv --python 3.12 .venv
+uv pip install --python ./.venv/bin/python pillow
+PLUGIN=$(ls -d ~/.claude/plugins/cache/advocacy-workflow/advocacy-workflow/*/ | tail -1)
+./.venv/bin/python "$PLUGIN/skills/script-to-video/scripts/build.py" script.json --outdir ./out
+./.venv/bin/python "$PLUGIN/skills/script-to-video/scripts/build.py" script.json my-take</code></pre>
+<p>The key is looked up in this order: <code>$DEEPGRAM_API_KEY</code>, then
+<code>$DEEPGRAM_ENV_FILE</code>, then a <code>.env</code> at or above the working directory.</p>
+
+<h2 id="asana">Asana reference</h2>
+
+<h3>What you do by hand</h3>
+<table>
+  <tr><th>When</th><th>Action</th></tr>
+  <tr><td>At each gate</td><td>Complete that piece's gate task. This is how you approve
+      anything.</td></tr>
+  <tr><td>Anytime</td><td>Type one-off tasks straight in. Re-running a skill never deletes them; they
+      are reported as untouched.</td></tr>
+</table>
+
+<h3>Which task approves which file</h3>
+<table>
+  <tr><th>File</th><th>Task to complete</th></tr>
+  <tr><td><code>content/&lt;branch&gt;/blog.md</code></td><td>Gate A: &lt;label&gt;, edit to publish ready</td></tr>
+  <tr><td><code>content/&lt;branch&gt;/&lt;s&gt;/&lt;s&gt;.md</code></td><td>Gate B: &lt;label&gt;, edit to publish ready</td></tr>
+  <tr><td><code>.../variants/&lt;s&gt;-&lt;style&gt;.md</code></td><td>Gate C: &lt;label&gt;, &lt;style&gt; variant</td></tr>
+</table>
+
+<h3>Board shape after a full run</h3>
+<table>
+  <tr><th>Filed by</th><th>Gate</th><th>Tasks</th><th>Subtasks</th><th>Day</th></tr>
+  <tr><td>intake</td><td>prep spine</td><td>up to 4</td><td>none</td><td>undated</td></tr>
+  <tr><td>intake</td><td>A</td><td>2</td><td>none</td><td>1</td></tr>
+  <tr><td>intake</td><td>B</td><td>5</td><td>none</td><td>10</td></tr>
+  <tr><td>cycle</td><td>C</td><td>5</td><td>20</td><td>30</td></tr>
+  <tr><td>cycle</td><td>D</td><td>1</td><td>4</td><td>45</td></tr>
+</table>
+<p>Days are counted from day 0 and are earliest-eligible, not deadlines. A drop that is not ready
+waits.</p>
+
+<h2 id="faq">Good to know</h2>
+
+<p><strong>Is it safe to re-run anything?</strong> Yes. Every skill here is idempotent. They create
+only what is missing and never delete a task or overwrite an authored file.</p>
+
+<p><strong>A skill refused to run. What now?</strong> Read the message; it names what to run first.
+The three most common: no <code>.hub/hub.yml</code> asana key means run
+<code>/project-hub init</code>; no <code>advocacy/advocacy.md</code> means run
+<code>/advocacy-intake</code>; a parent not approved means complete that gate task in Asana.</p>
+
+<p><strong>Where do I mark something approved?</strong> In Asana, by completing the gate task. Never
+by editing a file. The <code>status:</code> line in frontmatter is a cache the skill writes; if you
+edit it, it is overwritten on the next sync.</p>
+
+<p><strong>What if Asana is down?</strong> The cycle falls back to the cached <code>status:</code> and
+tells you it is reading a cache and how old <code>status_synced:</code> is. Treat that as a warning,
+not a normal run.</p>
+
+<p><strong>I forgot to keep a ledger. Can I backfill it?</strong> No. Code, numbers and screenshots
+are recoverable later; what it was like on the day is gone by tomorrow. Accept it, note that the
+build-log post will be weaker, and capture from today.</p>
+
+<p><strong>Can I skip a surface?</strong> Yes, at promotion. Declining is a real answer. The one rule
+is that you cannot keep a derivative without its branch's blog.</p>
+
+<p><strong>Can I use only one style instead of four?</strong> No. All four, on every canonical, every
+time. The variants exist to fill gaps between campaigns.</p>
+
+<p><strong>Do the videos ship as-is?</strong> No. They are placeholders with a synthetic voice, built
+to fix timing and structure. You re-record them.</p>
+
+<p><strong>What gets committed?</strong> Everything under <code>advocacy/</code> except
+<code>renders/</code>. Strip the whole directory, and <code>.hub/</code>, before any public flip.</p>
+
+<p class="meta"><strong>Status, 2026-08-28.</strong> Numbers, gids and file paths in
+this guide were read from source, not from other documentation.
+<code>project-hub</code> and <code>advocacy-intake</code> have both been run for real.
+<code>advocacy-cycle</code> is new: its verbs are written and its pure functions are tested, but no
+campaign has been taken through gates A to D end to end yet. Expect the first full run to turn up
+rough edges, and report them rather than working around them.</p>
+
+<!-- ===== CONTENT END ===== -->
+
+<script>
+  /* ===== THEME SCRIPT — DO NOT EDIT (keep identical across all docs) ===== */
+  (function () {
+    var root = document.documentElement;
+    var btn = document.getElementById('theme-toggle');
+    var stored = null;
+    try { stored = localStorage.getItem('doc-theme'); } catch (e) {}
+    var systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var theme = stored || (systemDark ? 'dark' : 'light');
+
+    function apply(t) {
+      root.setAttribute('data-theme', t);
+      btn.textContent = t === 'dark' ? 'Light mode' : 'Dark mode';
+    }
+    apply(theme);
+
+    btn.addEventListener('click', function () {
+      theme = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      apply(theme);
+      try { localStorage.setItem('doc-theme', theme); } catch (e) {}
+    });
+  })();
+  /* ===== END THEME SCRIPT ===== */
+</script>
+
+</body>
+</html>
