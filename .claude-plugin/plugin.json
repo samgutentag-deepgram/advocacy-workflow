@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "advocacy-workflow",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Turn a finished project into a content campaign: two blogs, five canonicals, twenty style variants and four videos, through four review gates tracked in Asana.",
   "author": { "name": "Sam Gutentag" },
   "repository": "https://github.com/samgutentag-deepgram/advocacy-workflow",

@@ -164,6 +164,35 @@ element for seconds of held silence after the line.
 | `chunk_gap` | Seconds of silence and cut card between chunks. Default 5 |
 | `target_seconds` | Per-chunk length target. Chunks estimated over it are flagged at render time |
 | third beat element | Seconds of silence held after the line, direction still on screen |
+| dict beat | `{"dir", "text", "hold", "voice"}`. Same fields as the list form plus an optional per-beat `voice`. See Two voices in one take |
+
+## Two voices in one take
+
+A demo script usually has two speakers: the presenter, and the thing being demoed. A TTS
+walkthrough plays generated lines; an IVR demo plays the agent. Give those beats their own
+`voice` and leave the take's `voice` for the presenter:
+
+```json
+{
+  "concept": {
+    "title": "What is Flux TTS",
+    "voice": "flux-cole-en",
+    "beats": [
+      {"dir": "Terminal only. PLAYBACK of the generated line",
+       "text": "Your flight's been moved to gate twelve.", "voice": "flux-haley-en", "hold": 1},
+      {"dir": "[P] To camera", "text": "that was flux tts."}
+    ]
+  }
+}
+```
+
+A beat whose voice differs from the take's gets the voice id appended to its on-screen
+direction, so the editor can see where playback sits without listening for the change. List
+beats and dict beats mix freely in one `beats` array.
+
+The presenter's lines in a real shoot come from a person, so the second voice is the only
+synthetic audio that survives the edit. Render playback lines with the voice the demo will
+actually use, and the base layer doubles as the saved demo asset.
 
 ## Running it
 

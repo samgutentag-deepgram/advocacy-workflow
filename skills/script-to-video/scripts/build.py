@@ -9,6 +9,11 @@
 Frame layout: bracketed shot direction top left, the current sentence in the middle
 with the spoken word lit, full-clip waveform along the bottom with a playhead.
 
+A beat is [direction, line] or [direction, line, hold], or a dict
+{"dir", "text", "hold", "voice"}. The dict form is how a single take carries two
+voices: the presenter's lines in the take voice, and playback lines (a demo output,
+a generated sample) in whatever voice the demo would actually use.
+
 Needs Pillow and ffmpeg. See SKILL.md.
 """
 import sys, os, json, wave, re, difflib, subprocess, pathlib, array
@@ -43,10 +48,19 @@ SEC_PER_SENTENCE = 0.70
 def estimate(text):
     return len(text.split())*SEC_PER_WORD + len(sentences(text))*SEC_PER_SENTENCE
 
-def estimate_chunk(ch, beat_gap=0.45):
-    beats=ch["beats"]
-    return (sum(estimate(b[1]) for b in beats)
-            + sum(b[2] for b in beats if len(b)>2)
+def norm_beat(beat, default_voice):
+    """Both beat shapes to one tuple: (direction, text, hold seconds, voice id)."""
+    if isinstance(beat, dict):
+        return (beat.get("dir",""), beat["text"], beat.get("hold",0) or 0,
+                beat.get("voice") or default_voice)
+    direction, text = beat[0], beat[1]
+    hold = beat[2] if len(beat)>2 else 0
+    return direction, text, hold, default_voice
+
+def estimate_chunk(ch, beat_gap=0.45, default_voice="flux-alexis-en"):
+    beats=[norm_beat(b, default_voice) for b in ch["beats"]]
+    return (sum(estimate(text) for _,text,_,_ in beats)
+            + sum(hold for _,_,hold,_ in beats)
             + len(beats)*beat_gap)
 
 def sentences(t):
@@ -97,6 +111,7 @@ def build(key, spec, outdir, keep_wav=False):
     if chunks is None:
         chunks = [{"label": None, "beats": spec["beats"]}]
     chunk_gap = spec.get("chunk_gap", 5)
+    take_voice = spec.get("voice","flux-alexis-en")
     n_chunks = len(chunks)
     target = spec.get("target_seconds")
     if target:
@@ -115,10 +130,13 @@ def build(key, spec, outdir, keep_wav=False):
             beats.append({"dir":"","text":"","t0":t0,"t1":t0+chunk_gap,"gap":True,
                           "chunk":ci,"n":n_chunks,"label":ch.get("label")})
         for beat in ch["beats"]:
-            direction, text = beat[0], beat[1]
-            hold = beat[2] if len(beat)>2 else 0
+            direction, text, hold, voice = norm_beat(beat, take_voice)
+            if voice != take_voice:
+                # A second voice on screen is a cue for the editor: this line is playback,
+                # not the presenter. Say so where the shot direction already is.
+                direction = f"{direction}  //  {voice}"
             t0=len(pcm)/2/SR
-            seg=speak(text, spec.get("voice","flux-alexis-en"))
+            seg=speak(text, voice)
             pcm+=seg+gap; t1=t0+len(seg)/2/SR
             beats.append({"dir":direction,"text":text,"t0":t0,"t1":t1,
                           "chunk":ci,"n":n_chunks,"label":ch.get("label")})
