@@ -110,6 +110,15 @@ that LLMs trip them because LLMs follow writing best practices. A cluster is the
 - **Flat register.** That draft had **one contraction in 2,662 words**. Every sentence was correct
   and the whole thing read like a machine.
 - **A piece narrating its own budget.** "The reason it is worth 400 words."
+- **Counted fragments and rhetorical triples.** "Two days, one roof, one rule." "One socket,
+  one bill." "Key, ask, release." "Each one reasonable, each one testable, each one wrong." Three
+  parallel fragments, often with a number in each, standing where a sentence should be. Sam,
+  2026-09-15: "2 rules, 1 item, this is the solution. That kind of sentence structure. I don't talk
+  like that, and it feels very AI." The video lists groupings of three as low signal on their own;
+  in our drafts they cluster, and the counted-fragment form is the loudest member. Fix by making
+  it a sentence with a verb and a connective ("Two days on one roof, with one rule"), not by
+  cutting an item. A factual list of three (the three signals on a jack) is content and stays; a
+  cadence of three is the tell. Pairs are fine.
 
 ---
 
@@ -144,6 +153,8 @@ not a rewrite: structure, claims, and length stay put.
    grep -coE "rather than"                             $f
    grep -cE '(^|\. )(That is|It is|This is)\b'         $f  # flat openers
    grep -coE "[A-Za-z]+'(t|re|ve|ll|s)\b"              $f  # contractions, want MORE
+   grep -cE "^(One|Two|Three|Four) [a-z' -]+, (one|two|three) [a-z' -]+, (one|two|three|and one)" $f  # counted fragments
+   grep -cE "(each|every|no|one) [a-z]+, (each|every|no|one) [a-z]+, (each|every|no|one) [a-z]+"   $f  # triples of the same opener
    ```
 
    Every count on that list should go **down** except the last one. The contraction count is the
@@ -156,10 +167,12 @@ not a rewrite: structure, claims, and length stay put.
    specific wrong assumption the reader actually holds. "`-ar 44100` is a compatibility flag, not a
    quality setting" survives because readers do assume it is a quality setting.
 3. **Zero "worth ~ing."** Assert the thing instead.
-4. **One aphorism per piece**, at most.
-5. **Vary the headers.** Use plain imperatives for procedures, per `corporate-style`.
-6. **Let contractions in.** Corporate voice is flatter than personal voice, not airless.
-7. **Read every metaphor out loud and picture it.** This is the step that catches the real tell, and
+4. **No counted fragments, and no cadence of three.** Rewrite each as one sentence with a verb.
+   Read the spoken lines aloud if the piece is a script; the cadence is easier to hear than see.
+5. **One aphorism per piece**, at most.
+6. **Vary the headers.** Use plain imperatives for procedures, per `corporate-style`.
+7. **Let contractions in.** Corporate voice is flatter than personal voice, not airless.
+8. **Read every metaphor out loud and picture it.** This is the step that catches the real tell, and
    it is the only step a script cannot do for you. Skipping this is how the HN Radio corporate post
    reached a reviewer sounding machine-written on 2026-08-25.
 
@@ -175,6 +188,7 @@ that leaves out the metaphor read, does not satisfy the cycle's exit checklist.
    | --- | --- | --- |
    | DiGiorno construct | | |
    | "worth ~ing" hedges | | |
+   | Counted fragments and triples | | |
    | Flat openers | | |
    | Contractions (want this one up) | | |
 
