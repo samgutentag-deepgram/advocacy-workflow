@@ -118,7 +118,16 @@ that LLMs trip them because LLMs follow writing best practices. A cluster is the
   in our drafts they cluster, and the counted-fragment form is the loudest member. Fix by making
   it a sentence with a verb and a connective ("Two days on one roof, with one rule"), not by
   cutting an item. A factual list of three (the three signals on a jack) is content and stays; a
-  cadence of three is the tell. Pairs are fine.
+  cadence of three is the tell. Pairs are **not** exempt: see the stat pair below, which
+  supersedes the "pairs are fine" carve-out this bullet used to end with.
+- **The stat pair.** Two comma-joined noun phrases with no finite verb, standing where a sentence
+  should be. "330 calls, 0 false triggers." "Three modes, from under a cent to about $0.46."
+  "A prompt injection guard, in a router." The precise name is an asyndetic verbless pair, and it
+  is the two-item form of the counted fragment above, so the same fix applies: give it a verb.
+  "That is 330 calls with 0 false triggers." Sam, 2026-09-18: "make those sentences, never two
+  comma separated thoughts or statements." It hides in stat lines and closers because it reads as
+  punchy, which is exactly why a model reaches for it. A comma-separated list inside a real
+  sentence is content and stays; the tell is the fragment standing alone.
 - **The unstated foil.** A generic category noun put in the subject slot so the reader supplies a
   contrast that was never written down. "A human wrote every line." "Every line the agent can say
   is written by a human." Nobody cares that a human is a human; the sentence only carries weight
@@ -173,6 +182,7 @@ not a rewrite: structure, claims, and length stay put.
    grep -cE "(each|every|no|one) [a-z]+, (each|every|no|one) [a-z]+, (each|every|no|one) [a-z]+"   $f  # triples of the same opener
    grep -cE "\b(a|one) (human|person|engineer|developer|someone) [a-z]+(ed|ote)\b" $f  # unstated foil
    grep -coiE "load.bearing"                           $f  # pet metaphor, target 0
+   grep -cE "^[A-Z][^.!?]*, [^.!?]*\.$"                 $f  # stat pairs, read each hit
    ```
 
    Every count on that list should go **down** except the last one. The contraction count is the
@@ -209,6 +219,7 @@ that leaves out the metaphor read, does not satisfy the cycle's exit checklist.
    | Counted fragments and triples | | |
    | Unstated foil ("a human wrote...") | | |
    | "load bearing" | | |
+   | Stat pairs | | |
    | Flat openers | | |
    | Contractions (want this one up) | | |
 
