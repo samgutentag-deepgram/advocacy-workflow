@@ -119,6 +119,22 @@ that LLMs trip them because LLMs follow writing best practices. A cluster is the
   it a sentence with a verb and a connective ("Two days on one roof, with one rule"), not by
   cutting an item. A factual list of three (the three signals on a jack) is content and stays; a
   cadence of three is the tell. Pairs are fine.
+- **The unstated foil.** A generic category noun put in the subject slot so the reader supplies a
+  contrast that was never written down. "A human wrote every line." "Every line the agent can say
+  is written by a human." Nobody cares that a human is a human; the sentence only carries weight
+  against the unwritten "and not a model," so it is the DiGiorno construct with the negated half
+  deleted. Linguistically it is contrastive focus with no stated alternative, which is why it
+  reads like an argument smuggled in as a description. Sam, 2026-09-18: "Maybe it's just a
+  straight phrase. I just don't like that." The test: delete the category noun. If the fact
+  survives ("every line is hand written in script.ts") the noun was doing rhetoric, not work. If
+  it does not survive, name the actual person instead of the category. Same shape, other nouns:
+  "a real engineer", "an actual person", "someone sat down and".
+- **"load bearing."** Ours, not the video's. A structural-engineering metaphor that turns up
+  wherever a draft wants to sound like it audited something: "nothing here is load bearing",
+  "the only load-bearing line", "that comment is load bearing." It is the same portable maxim
+  every time and it survives having its subject swapped, which is the giveaway. Sam, 2026-09-18:
+  "Stop saying that." Target zero. Say what actually depends on the thing: "delete this and the
+  gate stops firing."
 
 ---
 
@@ -155,6 +171,8 @@ not a rewrite: structure, claims, and length stay put.
    grep -coE "[A-Za-z]+'(t|re|ve|ll|s)\b"              $f  # contractions, want MORE
    grep -cE "^(One|Two|Three|Four) [a-z' -]+, (one|two|three) [a-z' -]+, (one|two|three|and one)" $f  # counted fragments
    grep -cE "(each|every|no|one) [a-z]+, (each|every|no|one) [a-z]+, (each|every|no|one) [a-z]+"   $f  # triples of the same opener
+   grep -cE "\b(a|one) (human|person|engineer|developer|someone) [a-z]+(ed|ote)\b" $f  # unstated foil
+   grep -coiE "load.bearing"                           $f  # pet metaphor, target 0
    ```
 
    Every count on that list should go **down** except the last one. The contraction count is the
@@ -189,6 +207,8 @@ that leaves out the metaphor read, does not satisfy the cycle's exit checklist.
    | DiGiorno construct | | |
    | "worth ~ing" hedges | | |
    | Counted fragments and triples | | |
+   | Unstated foil ("a human wrote...") | | |
+   | "load bearing" | | |
    | Flat openers | | |
    | Contractions (want this one up) | | |
 
