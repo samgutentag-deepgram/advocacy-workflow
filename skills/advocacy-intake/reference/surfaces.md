@@ -11,7 +11,7 @@ the advocate's own channels.
 
 | Surface | Limit | Earn it when |
 | --- | --- | --- |
-| `personal_blog` | 1,200 words | There is a ledger. The story is what it was like, and it cannot be reconstructed later. |
+| `personal_blog` | 1,200 words | There is a finished build worth describing in first person: what it is, why, and how it works now. The ledger supplies the reasons behind the design, not a story of the journey. |
 | `personal_thread` | 280 chars | Nearly always. One canonical, rendered per platform. |
 | `personal_linkedin` | 3,000 chars | The work reads to an audience that will not clone anything. Text plus images, and voiceless demos rather than narrated video. |
 | `personal_video_script` | 15 min | Watching it beats reading about it. The only surface that produces renders. |
