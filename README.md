@@ -55,6 +55,7 @@ Exits non-zero while anything is unanswered.
 | `personal-style` | Drafting in an advocate's own voice | prose |
 | `corporate-style` | Drafting in the company voice | prose |
 | `de-slop` | Before every gate | the machine fingerprints taken out |
+| `x-article` | When an approved draft ships as an X Article | the X-ready draft, its paste page and 5:2 cover, the blog mirror, and a 10 to 15 post series with a schedule |
 
 ## The gates
 
