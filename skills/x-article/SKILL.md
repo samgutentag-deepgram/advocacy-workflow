@@ -18,8 +18,26 @@ later. It is never the mirror.
 
 ## Before you start
 
-- **Source is an approved draft**, gate A or later from `advocacy-cycle`, or a draft a reviewer has
-  signed off. Never derive from an unreviewed draft. The mirror copies it, so its mistakes ship twice.
+Everything is read from, and written to, the project's `advocacy/` tree. Nothing goes in `_docs/`.
+
+| Path | Role |
+|---|---|
+| `advocacy/content/blog-base.md` | **The source**, only once approved |
+| `advocacy/notes.md` | Every allowed number, cited |
+| `advocacy/content/social.md` | The archetype posts that run between Articles. The series extends them |
+| `advocacy/content/x-article.md`, `x-article-paste.html`, `x-cover-5x2.png`, `x-series.md` | **What this skill writes** |
+
+- **The source has to be approved. Refuse it otherwise.** `blog-base.md` counts as approved when its
+  frontmatter has `status: approved` or a `published:` URL, or when the project's Asana Gate A task
+  (the "edit to publish ready" task) is complete. A `drafted` base is refused, the same as any
+  unreviewed draft, because the mirror copies it and its mistakes would ship twice. When
+  `blog-base.md` only points to a live post, **the live post is the source**: read the published
+  text, not an older draft.
+- **The numbers have to be in `notes.md`.** Every number in `x-article.md` and `x-series.md` has to
+  appear in `advocacy/notes.md` as the same literal token. If the published post's numbers differ from
+  `notes.md`, fix `notes.md` before writing anything: put the published figures in, and move the old
+  ones under a dated `## Superseded (YYYY-MM-DD)` heading so no lint can pass them again. If the
+  project has a numbers lint, run it over `x-series.md` too.
 - **Settings** live in `~/.claude/advocacy-workflow.yml`. If any of these are missing, ask once and
   tell the user to add them (the file keeps keys it does not know):
 
@@ -38,7 +56,7 @@ X Articles support headings, subheadings, bold, italics, strikethrough, lists, l
 GIFs and embedded posts. **They have no code blocks, no tables, and no inline code.** Pasted
 backticks show up as literal backticks.
 
-Write `x-article.md` from the approved draft:
+Write `advocacy/content/x-article.md` from the approved source:
 
 1. **Code becomes images.** Render each substantial block as a card in the project's visual style,
    trimmed for reading, and link the full runnable code from a public gist on the work account.
@@ -69,7 +87,7 @@ Leave vendors, GitHub, gists and X links untagged.
 
 ```bash
 S=${CLAUDE_PLUGIN_ROOT:-$(ls -d ~/.claude/plugins/cache/advocacy-workflow/advocacy-workflow/*/ | tail -1)}/skills/x-article/scripts
-python3 "$S/utm.py" x-article.md x-article.md --domains "$DOMAINS" \
+python3 "$S/utm.py" advocacy/content/x-article.md advocacy/content/x-article.md --domains "$DOMAINS" \
   --source x --medium social --campaign "$CAMPAIGN" --content "${PERSON}_article"
 ```
 
@@ -79,6 +97,7 @@ an FYI. Don't block the launch waiting for a reply.
 ## 3. Build the paste page and the cover
 
 ```bash
+cd advocacy/content
 python3 "$S/x_paste.py" x-article.md x-article-paste.html --assets "$(pwd)/assets" --title "$TITLE"
 ```
 
@@ -86,7 +105,7 @@ It refuses a draft that still has a code fence or a table. Every red box on the 
 **absolute path**, so nobody has to go hunting for it. Open the page in the browser once. After
 that, tell the user to refresh the tab.
 
-**Cover:** X recommends 5:2. Render a dedicated 2000x800 card, because a crop of a 16:9 card cuts off
+**Cover** (`advocacy/content/x-cover-5x2.png`): X recommends 5:2. Render a dedicated 2000x800 card, because a crop of a 16:9 card cuts off
 the header or the footer. Make the two brand names the largest text, a short hook second, and one
 concrete number third. Leave out footers and working labels.
 
@@ -123,8 +142,14 @@ X Articles cannot be scheduled from the composer. They are published by hand.
 
 ## 7. The post series
 
-Write `x-series.md`: **10 to 15 standalone posts**, each built from **one** fact, number, image, or
-code idea taken from the Article. None is a summary of the whole piece.
+Write `advocacy/content/x-series.md`: **10 to 15 standalone posts**, each built from **one** fact,
+number, image, or code idea taken from the Article. None is a summary of the whole piece.
+
+**The series extends `social.md` rather than duplicating it.** `social.md` holds archetype posts that
+run between Articles, and the series is the drip for this Article. Read `social.md`'s hooks first and
+reuse none of them. **Tag each series post with the developer archetype it serves:** Curious dev,
+Explorer, Builder, Scaler, Champion, or Partner dev. Cover at least four of the six across the
+series, so the two sets stay complementary.
 
 - **Each post stands alone.** A reader who never sees the Article still gets something.
 - **One number per post**, taken from the Article, so every claim is already reviewed. No new claims.
@@ -136,7 +161,7 @@ code idea taken from the Article. None is a summary of the whole piece.
   rather than the post body, since posts with links in the body get less reach.
 - **Schedule:** two to three a week, Tuesday to Thursday mornings, across three to four weeks.
   Nothing on a blackout date. Front-load the strongest three into the first week.
-- **Format each entry as:** number, date and time, angle, the post text (280 characters, or the
+- **Format each entry as:** number, date and time, archetype, angle, the post text (280 characters, or the
   premium limit if the account has one), media file with its absolute path, the link, and where the
   link goes (body or reply).
 - Run `de-slop` over the whole series before the user loads the scheduler.
@@ -149,7 +174,12 @@ code idea taken from the Article. None is a summary of the whole piece.
 - [ ] The cover is 5:2
 - [ ] The mirror is live, canonical to itself, with `og:image` set, checked in the live HTML
 - [ ] The Article is published, and edited afterward to link the mirror
-- [ ] `x-series.md` is written, de-slopped, and every date is clear of the blackouts
+- [ ] The source was approved, or was the live post, before anything was written
+- [ ] Every number in `x-article.md` and `x-series.md` is a literal token in `notes.md`, and any
+      replaced figures sit under a dated Superseded heading
+- [ ] `x-series.md` shares no hook with `social.md`, tags every post with its archetype, is
+      de-slopped, and has every date clear of the blackouts
+- [ ] Every output is in `advocacy/content/`
 - [ ] The UTM scheme was posted to marketing ops as an FYI
 
 ## Notes
