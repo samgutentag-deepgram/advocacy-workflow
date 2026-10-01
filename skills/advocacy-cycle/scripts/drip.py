@@ -151,6 +151,19 @@ _MONTHS = {m: i for i, m in enumerate(
 
 _TRIM = "\"'“”‘’.,:;!?()[]{}<>*_`"
 
+# An unfenced social.md, the way the first real project wrote it: an
+# archetype heading, Fact and Link lines, then `### X` or `**LinkedIn**`
+# labels with the post as plain or blockquoted paragraphs, a character count,
+# and a `> **Image:**` note. These mirror last_looks.py, which imports this
+# module, so they are copied rather than imported. Keep the two in step.
+_LABEL_HEADING = re.compile(r"^#{2,3}\s+(.*)")
+_LABEL = re.compile(r"^\**\s*(X|LinkedIn)\b.*?\**:?\s*$", re.IGNORECASE)
+_ANNOTATION = re.compile(
+    r"^[*_]*(Fact|Link|Characters?|Asset|BLOCKER|No blocker|Uses|Points at|"
+    r"Archetype|Needs|Image|Dependency)\b", re.IGNORECASE)
+_COUNT = re.compile(r"^[(`]?\s*[\d,]+\s+(chars?|characters)\b", re.IGNORECASE)
+_RULE = re.compile(r"^(-{3,}|\*{3,})$")
+
 
 # --------------------------------------------------------------------------
 # The file
@@ -424,13 +437,85 @@ def hook(post, n=HOOK_WORDS):
     return tuple(words)
 
 
+def _label_post_body(buf):
+    """The text that posts, out of the lines under one platform label.
+
+    The first fenced block when there is one. Otherwise a blockquoted post is
+    the first quoted run that is not an annotation (a `> **Image:**` note is
+    one). Failing that, the plain paragraphs up to the first annotation or
+    character count, or the first blockquote. Same rules as last_looks.py.
+    """
+    joined = "\n".join(buf)
+    fence = re.search(r"```[^\n]*\n(.*?)```", joined, re.DOTALL)
+    if fence:
+        return fence.group(1).strip()
+    items = []
+    for para in re.split(r"\n\s*\n", joined):
+        if not para.strip() or _RULE.match(para.strip()):
+            continue
+        is_quote = all(l.lstrip().startswith(">") for l in para.strip().split("\n"))
+        text = re.sub(r"^\s*> ?", "", para, flags=re.MULTILINE).strip()
+        items.append((is_quote, text, bool(_ANNOTATION.match(text) or _COUNT.match(text))))
+    quoted = [i for i, (q, _, a) in enumerate(items) if q and not a]
+    out = []
+    if quoted:
+        for is_quote, text, annotated in items[quoted[0]:]:
+            if not is_quote or annotated:
+                break
+            out.append(text)
+        return "\n\n".join(out)
+    for is_quote, text, annotated in items:
+        if annotated:
+            if out:
+                break
+            continue                            # a leading label line
+        if is_quote:
+            break
+        out.append(text)
+    return "\n\n".join(out)
+
+
+def labeled_posts(body):
+    """Every X and LinkedIn post in an unfenced social.md, in file order.
+
+    A `##`/`###` heading that is not a platform names the archetype and
+    resets. A platform is a `### X` heading, a `**LinkedIn**` label, or a
+    bare `X:` line; the post runs to the next heading or label.
+    """
+    out, platform, buf = [], None, []
+    for line in body.split("\n") + ["## end"]:
+        head = _LABEL_HEADING.match(line)
+        label = _LABEL.match(line.strip())
+        if head or label:
+            if platform and buf:
+                out.append(_label_post_body(buf))
+            buf = []
+            if head and not re.match(r"^(X|LinkedIn)\b", head.group(1), re.IGNORECASE):
+                platform = None
+            else:
+                platform = (label.group(1) if label else head.group(1).split()[0]).lower()
+            continue
+        if platform:
+            buf.append(line)
+    return [p for p in out if p]
+
+
 def posts_in(text):
-    """The posts in any content file: its fenced blocks, or failing that
-    the numbered or dash-separated posts cycle_core knows how to split."""
+    """The posts in any content file.
+
+    Fenced blocks first. Otherwise the paragraphs under `### X` and
+    `**LinkedIn**` labels, the way last_looks.py reads a social.md. Failing
+    both, the numbered or dash-separated posts cycle_core knows how to split.
+    The middle case is the one the first real run missed: without it a social.md
+    with no fences listed its headings as the hooks already used.
+    """
     body = _FRONTMATTER.sub("", text)
     fenced = [m.group(1).strip() for m in _FENCE.finditer(body) if m.group(1).strip()]
     if fenced:
         return fenced
+    labeled = labeled_posts(body)
+    if labeled:
+        return labeled
     return [post_body(p) for p in split_posts(text) if post_body(p)]
 
 

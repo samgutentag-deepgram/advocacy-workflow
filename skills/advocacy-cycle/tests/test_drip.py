@@ -20,6 +20,56 @@ SOCIAL = ("---\nproject: demo\nsurface: social\n---\n\n## Curious dev\n\n**X**\n
           "```x\nI can't follow the front page anymore, so I made it talk.\n```\n\n"
           "**LinkedIn**\n\n```li\nEvery morning the front page is a wall of text.\n```\n")
 
+# The layout the first real project used: no fences, `### X` and `**LinkedIn**`
+# labels, plain and blockquoted posts, a character count, and image notes.
+UNFENCED_SOCIAL = """---
+project: demo
+surface: social
+---
+
+# Demo: social posts
+
+## 1. Curious dev
+
+**Fact:** notes.md Numbers (86 episodes).
+**Link:** the show page.
+
+### X
+
+There's a podcast that reads the front page out loud twice a day.
+
+Press play: https://example.com/
+
+`214 characters` of 280 as X counts it
+
+> **Image:** `advocacy/assets/card.png`, the share card.
+
+### LinkedIn
+
+This afternoon's episode cost twenty-four cents to make.
+
+86 episodes in, all of them live.
+
+`1063 characters` of 3,000
+
+> **Image:** same card.
+
+---
+
+## 2. Explorer
+
+**X**
+
+> Measured twice, the number held at 86.
+> Here is the second line.
+
+> **Image:** needs: a chart.
+
+**LinkedIn**
+
+Every number here was measured, not estimated, and 86 is the one that held.
+"""
+
 CTX = drip.Context(
     notes=NOTES,
     blackouts={D(2026, 10, 14), D(2026, 10, 15), D(2026, 10, 29)},
@@ -149,6 +199,25 @@ class TestHooks(unittest.TestCase):
         self.assertEqual(drip.hooks_in(SOCIAL), [
             ("i", "can't", "follow", "the", "front", "page"),
             ("every", "morning", "the", "front", "page", "is")])
+
+    def test_an_unfenced_social_md_yields_the_posts_not_the_headings(self):
+        """The first real run listed '1. curious dev' and 'fact: notes.md' as
+        hooks. The post is what follows the platform label, read the way
+        last_looks.py reads it, blockquote marker stripped."""
+        self.assertEqual(drip.hooks_in(UNFENCED_SOCIAL), [
+            ("there's", "a", "podcast", "that", "reads", "the"),
+            ("this", "afternoon's", "episode", "cost", "twenty-four", "cents"),
+            ("measured", "twice", "the", "number", "held", "at"),
+            ("every", "number", "here", "was", "measured", "not")])
+
+    def test_unfenced_posts_stop_at_the_count_line_and_the_image_note(self):
+        posts = drip.posts_in(UNFENCED_SOCIAL)
+        self.assertEqual(posts[0], "There's a podcast that reads the front page out loud twice a day."
+                                   "\n\nPress play: https://example.com/")
+        self.assertEqual(posts[2], "Measured twice, the number held at 86.\nHere is the second line.")
+        for post in posts:
+            self.assertNotIn("Image:", post)
+            self.assertNotIn("characters", post)
 
     def test_a_file_without_fences_falls_back_to_numbered_posts(self):
         text = "---\n---\n# Thread\n\nPreamble.\n\n## 1\n\nFirst post here.\n\n## 2\n\nSecond post here.\n"
@@ -445,6 +514,18 @@ class TestCLI(unittest.TestCase):
         self.assertIn("social.md          i can't follow the front page", text)
         self.assertIn("social.md          every morning the front page is", text)
         self.assertIn("_docs/x-series.md  every voice agent answers two", text)
+
+    def test_the_beats_read_an_unfenced_social_md_as_posts(self):
+        (self.repo / "advocacy" / "content" / "social.md").write_text(UNFENCED_SOCIAL)
+        self.scaffold()
+        text = self.drip_path.read_text()
+        self.assertIn("social.md          there's a podcast that reads the", text)
+        self.assertIn("social.md          measured twice the number held at", text)
+        hook_lines = [l for l in text.splitlines() if l.startswith("       social.md")]
+        self.assertEqual(len(hook_lines), 4 * len(drip.ARCHETYPES))
+        for line in hook_lines:
+            self.assertNotIn("curious dev", line)      # the old bug: headings as hooks
+            self.assertNotIn("fact", line)
 
     def test_a_second_drip_avoids_the_first_ones_dates_and_hooks(self):
         self.scaffold()
