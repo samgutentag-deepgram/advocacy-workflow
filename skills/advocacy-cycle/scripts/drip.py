@@ -791,12 +791,22 @@ def _report(findings):
         print("%s: %s" % (finding.where, finding.what))
 
 
+def progress(sections):
+    """(written, unwritten) sections. A scaffold is six unwritten posts and
+    passes check; the summary is what keeps that from reading as done."""
+    return ([s for s in sections if s.text], [s for s in sections if not s.text])
+
+
 def cmd_check(args):
     path, repo, ctx = _load(args)
-    findings = check_drip(_read(path), ctx)
+    text = _read(path)
+    findings = check_drip(text, ctx)
     _report(findings)
-    if not findings:
-        print("ok: %s" % path.relative_to(repo).as_posix())
+    written, unwritten = progress(parse_sections(text))
+    print("%s: %d written, %d unwritten"
+          % (path.relative_to(repo).as_posix(), len(written), len(unwritten)))
+    if unwritten:
+        print("  unwritten: %s" % ", ".join(s.archetype for s in unwritten))
     return 1 if findings else 0
 
 

@@ -489,7 +489,8 @@ class TestCLI(unittest.TestCase):
         self.scaffold()
         code, out, err = self.run_cli("check", self.drip_path)
         self.assertEqual(code, 0, out)
-        self.assertIn("ok: advocacy/content/drips/2026-09-30-hn-radio-podcast.md", out)
+        self.assertIn("advocacy/content/drips/2026-09-30-hn-radio-podcast.md: 0 written, 6 unwritten", out)
+        self.assertIn("  unwritten: Curious dev, Explorer, Builder, Scaler, Champion, Partner dev", out)
         text = written(self.drip_path.read_text(), 1, "Every morning the front page is 90 items — long.")
         self.drip_path.write_text(text)
         code, out, err = self.run_cli("check", self.drip_path)
@@ -499,6 +500,40 @@ class TestCLI(unittest.TestCase):
         self.assertTrue(any("em dash" in l for l in lines))
         self.assertTrue(any("90 is not a literal token" in l for l in lines))
         self.assertTrue(any("already used in social.md" in l for l in lines))
+
+    def test_check_counts_written_posts_and_names_the_rest(self):
+        """A scaffold passes, but a pass is not a finished drip."""
+        self.scaffold()
+        self.drip_path.write_text(written(self.drip_path.read_text(), 3, "Build it: 86 episodes from one script."))
+        code, out, err = self.run_cli("check", self.drip_path)
+        self.assertEqual(code, 0, out)
+        self.assertIn(": 1 written, 5 unwritten", out)
+        self.assertIn("  unwritten: Curious dev, Explorer, Scaler, Champion, Partner dev", out)
+
+    def test_a_finished_drip_reports_nothing_unwritten(self):
+        self.scaffold()
+        text = set_meta(set_meta(self.drip_path.read_text(), 4, "platform", "x"), 6, "platform", "x")
+        posts = ["The front page as 86 episodes of audio.",
+                 "Measured: 86 episodes, every one of them live.",
+                 "Build it: 86 episodes from one script.",
+                 "At scale: 86 episodes and counting.",
+                 "Carry it in: 86 episodes for your team.",
+                 "On your stack: 86 episodes, one feed."]
+        for n, post in enumerate(posts, 1):
+            text = written(text, n, post)
+        self.drip_path.write_text(text)
+        code, out, err = self.run_cli("check", self.drip_path)
+        self.assertEqual(code, 0, out)
+        self.assertIn(": 6 written, 0 unwritten", out)
+        self.assertNotIn("unwritten:", out)
+
+    def test_the_project_name_is_the_lab_repo_without_its_suffix(self):
+        """The inventory and the calendar know hn-radio, not hn-radio-lab."""
+        self.assertEqual(drip.project_name(self.repo), "demo")
+        self.assertEqual(drip.project_name(pathlib.Path(self.tmp.name) / "hn-radio-lab"), "hn-radio")
+        self.assertEqual(drip.project_name(pathlib.Path(self.tmp.name) / "hn-radio"), "hn-radio")
+        self.scaffold()
+        self.assertEqual(drip.parse_frontmatter(self.drip_path.read_text())["project"], "demo")
 
     def test_post_sets_published_and_appends_to_the_log(self):
         self.scaffold()
