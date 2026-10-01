@@ -1,158 +1,78 @@
 ---
 name: advocacy-cycle
-description: Produce the content for a campaign that advocacy-intake already promoted. Scaffolds advocacy/content/, extracts notes.md from the build ledger, writes the two blogs, derives five canonicals and twenty style variants through four review gates, files gates C and D in Asana, renders base-layer videos, and schedules a six-post drip for every piece that ships. Use when the user says "start the cycle", "write the blog posts", "fan out the variants", "check the drafts", "drip the posts", "the post is live", or runs /advocacy-cycle. Requires advocacy/advocacy.md, which advocacy-intake writes.
+description: Produce the content for a campaign that advocacy-intake already promoted. Extracts notes.md from the build ledger, writes the base blog post, the per-archetype takes and the social pool, records what ships, schedules the drips, renders base-layer video, and ticks the campaign's seven Asana tasks from the files. Use when the user says "start the cycle", "write the blog post", "write the takes", "draft the social posts", "check the draft", "the post is live", "drip the posts", "sync asana", or runs /advocacy-cycle. Requires advocacy/advocacy.md, which advocacy-intake writes.
 ---
 
 # Advocacy cycle
 
-One build becomes two blogs, five canonicals, twenty variants and four
-videos, through four gates that are all yours.
-
-```
-notes.md          every fact, cited, out of .hub/ledger.md
-  two blogs                                     GATE A
-    five canonicals                             GATE B
-      twenty style variants                     GATE C
-        four horizontal base layers             GATE D
-```
-
-**Nothing derives from an unapproved parent, at any level.** This is the rule
-the whole skill exists to enforce. Writing variants before the canonical is
-signed off means rewriting all of them when it changes, which is how a fan-out
-turns into four times the work instead of four times the output.
+One build becomes a base post, six archetype takes, twelve social posts, a
+drip per shipped piece, and a video. Seven flat Asana tasks record what went
+live. The six developer archetypes are the fan-out for everything written
+for a reader: Curious dev, Explorer, Builder, Scaler, Champion, Partner dev,
+always in that order.
 
 ## Related skills
 
-- **project-hub** owns `.hub/` and the ledger. This skill reads the ledger and
-  never writes to it.
-- **advocacy-intake** owns `advocacy/advocacy.md`, the frozen claim, and files
-  gates A and B in Asana. **It runs first.** If `advocacy/advocacy.md` is
-  missing, stop and say so: this skill produces a campaign's content, it does
-  not decide there is one.
-- **script-to-video** renders gate D and owns the style contracts.
-- **The configured voice skills** govern voice. Read `voice_personal` and
-  `voice_corporate` from `~/.claude/advocacy-workflow.yml` rather than naming
-  a skill here. `personal-style` and `corporate-style` ship with this plugin
-  and are advocate-agnostic; a person writing in their own established voice
-  names their own skill instead, and the same field is how you ghostwrite for
-  somebody else.
-- **de-slop** runs before every gate.
+- **project-hub** owns `.hub/` and the ledger. This skill reads the ledger
+  and never writes to it.
+- **advocacy-intake** owns `advocacy/advocacy.md`, the frozen claim, day 0,
+  and creates the seven tasks. **It runs first.** If `advocacy/advocacy.md`
+  is missing, stop and say so.
+- **last-looks** is the check. This skill does not carry its own.
+- **x-article** writes `content/x-article.md`, its paste page and
+  `x-series.md` from an approved `blog-base.md`.
+- **script-to-video** renders the base-layer video.
+- **The configured voice skills** govern voice: `voice_personal` and
+  `voice_corporate` in `~/.claude/advocacy-workflow.yml`. **de-slop** runs
+  on every draft before it is handed over.
 
 ## Where things live
 
-Campaigns run inside a **lab repo**: a private working repo named
-`<thing>-lab`, kept under the directory in `lab_root` (`~/LABS` by
-convention). The `-lab` suffix is the convention that keeps a working repo
-from being published by accident; the clean public repo is created separately
-at the end and the lab repo never goes public.
+Inside the lab repo, `<thing>-lab`, under `lab_root`:
 
 ```
 advocacy/
   advocacy.md                 the frozen claim. intake's. never edited here
   notes.md                    every fact, cited. the only source content may project from
   notes.companion.md          what each fact means and where it came from
-  content/<branch>/blog.md
-  content/<branch>/<surface>/<surface>.md
-  content/<branch>/<surface>/variants/<surface>-<style>.md
+  content/blog-base.md        the base post
+  content/archetype-takes.md  six pickup briefs, one per archetype
+  content/social.md           six X posts and six LinkedIn posts, one pair per archetype
+  content/x-article.md        x-article's, with x-series.md and the paste page
+  content/video-script.md     the script render reads, when there is a video
   content/drips/<date>-<slug>.md   six dated posts for one shipped piece
-  content/published.log       one line per post that went live
+  content/published.log       one line per drip post that went live
   renders/                    gitignored
   assets/                     authored figures
-  review/                     critique output, input to revision
 ```
 
 `scripts/cycle_core.py` computes every path. Do not construct one by hand.
 
-**Directory depth is the gate.** Gate B is everything at the top level of a
-surface's directory, Gate C is everything one level down in `variants/`.
+## Files drive Asana, one direction
 
-### Asana is the source of truth for gate state
+The files are the record. `published:` in a file's frontmatter is where a
+piece went live, `hub.yml`'s `public_repo` is the flip, a drip with six
+written posts is the drip. `sync` reads those and ticks the matching task.
+Nothing flows the other way, and nothing in a file caches what the board
+said. A task is ticked by `sync` or by hand, and never unticked by a script.
 
-**A gate task marked complete IS that piece being approved.** The board
-already says so. Do not ask the user to flip a field in a file to say it a second
-time, and never infer approval from anything else.
+## Beats are inline, in the file, not metadata
 
-The join is by title, and the titles match by construction because both
-skills build them from the same `SURFACES` table. `gate_task_title()` gives
-the task for any piece.
-
-| Piece | Its task |
-| --- | --- |
-| a blog | `Gate A: <label>, edit to publish ready` |
-| a canonical | `Gate B: <label>, edit to publish ready` |
-| a variant | `Gate C: <label>, <style> variant` |
-
-Read the board with `status_from_board()`, then **write the answer back into
-each file's frontmatter as a cache**, stamped with the date:
-
-```yaml
----
-surface: personal-blog
-status: approved          # cache. written from the board, never read into it
-status_synced: 2026-08-28
-published: https://...    # a fact about the world, not a gate state
----
-```
-
-**One direction only.** Nothing ever flows file to board, so the two cannot
-drift into disagreeing about which is right. Same rule as syncing a published
-piece from its live page.
-
-**Why this way round.** If the board is right and a file is stale, nothing
-breaks, because nothing reads the file for this. If a file were right and the
-board stale, this skill would refuse to write variants for work the user considers
-approved and they would go hunting for why a tool is arguing with them. One
-direction fails quietly; the other fails loudly at the worst moment.
-
-**If Asana cannot be reached**, fall back to the cached `status`, and say out
-loud that you are reading a cache and how old `status_synced` is. Never let
-that pass silently.
-
-`published` is the exception and stays file-owned: a live URL is a fact no
-checkbox can tell you.
-
-### Beats are inline, in the file, not metadata
-
-A beat is an HTML comment that scaffolds one section, holding its name, a word
+A beat is an HTML comment that scaffolds one section: its name, a word
 budget, the job that section has to do, and the facts it may use with their
 citations. You write into it and delete it when the section lands.
 
 ```
 <!-- COLD OPEN ......................................... 60-100 w
      Job: the honest reaction to a wall of text, before the project exists.
-     Facts: 3 stories from a pool of 30, 2 comments from ONE thread
-     (config.py:24-26). Not two threads.
+     Facts: 3 stories from a pool of 30 (config.py:24-26).
 -->
 ```
 
-So **the beats still in a file are the sections still unwritten**, which makes
-them the honest progress signal for a draft: not how long it is, but how much
-of its outline is still a comment. `open_beats()` lists them.
-
-There is no `beats/` directory and no `beats:` frontmatter key. A beat belongs
-where the writing happens, because that is the only place it gets read.
-
-## Styles
-
-`technical`, `build-it-too`, `fun`, `user-demo`. All four, on every canonical,
-every time. No picking a style per surface.
-
-The contracts live at `${CLAUDE_PLUGIN_ROOT}/skills/script-to-video/styles/`, one file
-each, and govern threads as well as video. **Never copy them into a project
-repo.** A second copy is the copy that goes stale. Read the Stance, Leads
-with, Emphasize, Cut and Register sections; the frontmatter and Length section
-are written for video.
-
-Variants are staggered long tail reposts of the same material, filling gaps
-between cycles. They are not four competing angles for one slot, so they may
-share the canonical's rhythm and the edits should be light.
-
-The four styles are the fan-out axis for video, and for the gate C variants
-that feed it. Prose fans out on a different axis: the six developer
-archetypes (Curious dev, Explorer, Builder, Scaler, Champion, Partner dev)
-that the archetype takes, `social.md`, and the drips are written against. A
-style changes how a piece is told; an archetype changes who it is told to.
-A project uses both, and neither replaces the other.
+The beats still in a file are the sections still unwritten, which is the
+honest progress signal for a draft. `open_beats()` lists them and
+`piece_status()` turns them into one word: `empty`, `drafting`, `written`,
+`published`.
 
 ## Verbs
 
@@ -160,147 +80,121 @@ Parse the argument. No argument means status.
 
 ### (no argument): status
 
-Report, briefly: which gate the campaign is on, the count at each status per
-gate, and the next unblocked piece. Name anything blocked and say what it is
-waiting on. Use `gate_status` and `blocked_reason`; do not eyeball the tree.
+Run `scripts/sync.py --repo <repo>` for the file states and the drips, and
+fetch the project's seven tasks from Asana. Print the seven with a tick or
+not, then the files with their status and open beats, then each drip's
+written and live counts. Name what the files prove complete that the board
+has not ticked yet, and say `sync` would tick it.
 
-### `init`: scaffold and file
+### `init`: notes and scaffolds
 
-1. Refuse if `advocacy/advocacy.md` is missing. Say that `/advocacy-intake`
-   writes it and to run that first. This is a refusal, not a warning.
-2. Read the kept surfaces out of `advocacy.md`.
-3. **Write `notes.md` from `.hub/ledger.md`.** Every fact gets a citation to
-   the ledger entry, the file, or an external source. **If it is not in
-   `notes.md` or in a cited source, it does not ship.** Put the reasoning in
-   `notes.companion.md` so a fact that is true but baffling can be understood
-   six weeks later.
-4. Create the content tree from `content_tree()`, each file frontmatter only,
-   `status: drafted` absent until something is written. Never overwrite a file
-   that exists.
-5. **File gates C and D in Asana.** Run intake's reconciler with
-   `--filer cycle`, create the sections, then the parents, then the subtasks
-   under them. Gates A and B are already there; leave them alone.
-6. Add `advocacy/renders/` to `.gitignore` if it is not there.
+1. Refuse if `advocacy/advocacy.md` is missing.
+2. **Write `notes.md` from `.hub/ledger.md`.** Every fact gets a citation to
+   the ledger entry, the file and line, or an external source. **If it is
+   not in `notes.md` or in a cited source, it does not ship.** Put the
+   reasoning in `notes.companion.md` so a fact that is true but baffling can
+   be understood six weeks later. Resolve code citations with
+   `check_citation` before moving on.
+3. Scaffold `content/blog-base.md`, `content/archetype-takes.md` and
+   `content/social.md` with `scaffold()`: frontmatter only. Never overwrite
+   a file that exists.
+4. Add `advocacy/renders/` to `.gitignore` if it is not there.
 
-### `draft <surface>`: write a blog or a canonical
+### `draft <blog-base|takes|social>`: write one file
 
-1. **Check the parent against the board.** Fetch the project's completed task
-   titles, build the status map with `status_from_board()`, then let
-   `blocked_reason` decide. Not judgment, and not the file's cached status.
-2. Project only from `notes.md`. A claim with no entry there does not go in.
-3. Blogs: the personal one uses the skill named in `voice_personal`, the
-   corporate one uses `voice_corporate`. Canonicals inherit their blog's
-   voice.
-4. Run `de-slop` before handing it over.
-5. Sync the cache with `apply_status()` and stop. **Approval is the user's, happens
-   in Asana, and is never inferred** from the fact that a draft exists. Tell
-   them which task to complete when they are happy with it.
+Write from `notes.md` only. A claim with no entry there does not go in.
+Open beats first, then write into them, then delete them.
 
-### `variants <surface>`: fan out to four styles
+- `blog-base`: the post, in `voice_personal`, describing the final build:
+  what it is, why, how it works now. When it ships to the company blog, the
+  edit for that is `voice_corporate` applied to this text, not a second
+  draft.
+- `takes`: six sections in archetype order. Each is a pickup brief for one
+  reader, not prose for publication: what they want from the piece, the
+  fact to lead with, the angle, the call to action.
+- `social`: six sections in archetype order, each holding one X post in an
+  ```` ```x ```` fence and one LinkedIn post in a ```` ```li ```` fence, in
+  `voice_personal`. X: 280 characters with every URL billed at 23. LinkedIn:
+  600 to 1,500 characters, at most three hashtags, first line is the hook.
+  No two posts share their first six words.
 
-1. Refuse unless the board says the canonical's Gate B task is complete, or
-   the file carries a `published:` URL.
-2. Write all four. Same facts, different framing.
-3. **A style changes framing and never a claim.** A wrong number is wrong in
-   all four, is fixed in the canonical first, and is carried down.
+Run `de-slop` before handing a draft over, then stop. Whether it is ready to
+publish is the user's call, and nothing here infers it from the fact that a
+draft exists.
 
-### `render`: gate D
+### `check [<file>]`: hand off to last-looks
 
-Only for `personal_video_script`, and only once its variants are approved.
-Build one `script-to-video` beat JSON per approved variant and render
-horizontal. Output to `advocacy/renders/` beside its input JSON.
+Run `/last-looks` on the file, or on every file under `advocacy/content/`
+when none is named, and report its actual output. Do not reimplement any
+check here. Drips also have their own strict format check in
+`scripts/drip.py check`.
 
-- **Isolate per item.** One failed take must not kill the batch or strand the
-  queue behind it.
-- **Never estimate runtime from word count.** Duration tracks sentence count
-  too, and guessing from words has been wrong every time it was tried.
-- These are placeholders with a synthetic voice. They exist so the advocate can
-  re-record against a structure, and are never the deliverable.
+### `ship <file> <url>`: record the landing
 
-### `check`: the five checks
+`set_published()` writes the URL under `published:` in the file's
+frontmatter, appending when the piece already lives somewhere else (a
+company post and a personal mirror are two homes, not a correction).
 
-Run all five and report actual output. Never report a check as passing without
-having run it.
+**Then sync the file from the live page, never the reverse.** Once a piece
+is up, the site is the source of truth for its own copy and the repo file is
+a record of it. Refuse to ship while `check` is failing or `check_beats`
+finds a beat still open. Then run `sync`.
 
-| Check | What it does |
-| --- | --- |
-| `citations` | Resolves every `path.py:120-140` against the repo. `find_citations` then `check_citation` |
-| `facts` | Every number traced to `notes.md`, plus every file still holding a superseded value |
-| `limits` | `check_limits`, which bills every URL at 23 characters the way X does |
-| `links` | Every URL resolves |
-| `beats` | `check_beats`: nothing approved or published still carries an open beat |
-
-**`facts` is the one that matters most and the only one that is not pure.**
-When a number in `notes.md` changes, every file already carrying the old value
-has to be found and fixed. A corrected measurement once survived in fourteen
-files, `notes.md` among them.
-
-### `ship <surface>`: record the landing
-
-Set `published:` to the live URL. `status` follows from that on the next
-sync; do not hand-write it.
-
-**Then sync the file from the live page, never the reverse.** Once a piece is
-up, the site is the source of truth for its own copy and the repo file is a
-record of it. A repo copy has been the last pre-publication draft before, and
-differed from the published page in five blocks.
-
-Refuse to mark anything published while a check is failing.
-
-### `drip <piece-url> --type blog|video`: six posts for one shipped piece
+### `drip <piece-url> --type blog|video [--title] [--start] [--lead]`
 
 Run from the project repo once the piece is live. `scripts/drip.py scaffold`
-writes `advocacy/content/drips/<date>-<slug>.md`: six posts, one per
-developer archetype in a fixed order (Curious dev, Explorer, Builder, Scaler,
-Champion, Partner dev), each on one platform. Curious dev, Explorer, Builder
-and Champion default to X; Scaler and Partner dev default to LinkedIn. Edit
-`platform:` to override one. It refuses to overwrite a file that exists.
-
-1. **The dates are the script's.** Two a week, Tuesday and Thursday, 09:00
-   America/Los_Angeles, from the first Tuesday at least five days out, or
-   from the week `--start` names. It skips `launch_blackouts` in
-   `~/.claude/advocacy-workflow.yml` and any date `x-series.md` or another
-   drip already holds. Name the piece's two strongest archetypes with
-   `--lead` and they take the first two slots.
-2. **Every post arrives as a beat** carrying the archetype's job and every
-   hook already used in the project. Write from `notes.md`, through the
-   voice skill and `de-slop`, then `drip.py check`, then delete the beat.
-3. **No hook reuse.** The first six words may match nothing in `social.md`,
-   `x-series.md`, or another drip.
-4. X: 280 characters with every URL billed at 23, link in the first reply
-   unless the piece itself is on X. LinkedIn: 600 to 1,500 characters, at
-   most three hashtags, first line is the hook.
-5. `check` traces every number back to `notes.md` as a literal token,
-   ignoring anything under a Superseded heading, the same rule x-article
-   uses. One line per finding, exit 1.
+writes `content/drips/<date>-<slug>.md`: six posts, one per archetype in the
+fixed order, each on one platform, dated two a week on Tuesdays and
+Thursdays from the first Tuesday at least five days out, skipping
+`launch_blackouts` and any date another post holds. It refuses to overwrite.
+**Every post arrives as a beat** carrying the archetype's job and every hook
+already used in the project. Write from `notes.md`, through the voice skill
+and `de-slop`, then `drip.py check`, then delete the beat. `check` traces
+every number back to `notes.md` as a literal token and refuses a hook whose
+first six words match `social.md`, `x-series.md`, or another drip.
 
 ### `post <drip-file> <n> <permalink>`: record one post going live
 
 `scripts/drip.py post` writes `published: <permalink>` on post `n` and
 appends `YYYY-MM-DD <platform> <permalink> <file>#<n>` to
-`advocacy/content/published.log`. It refuses a post already published, one
-still unwritten, and any file failing `check`. The log lives here and not in
-`.hub/ledger.md` because the ledger is project-hub's.
+`content/published.log`. It refuses a post already published, one still
+unwritten, and any file failing `check`.
+
+### `render`: base-layer video
+
+Read `content/video-script.md`, build one `script-to-video` beat JSON, and
+render horizontal to `advocacy/renders/`. Isolate per item so one failed
+take does not kill the batch. Never estimate runtime from word count. The
+output is a placeholder with a synthetic voice to re-record against, never
+the deliverable. When the real video is public, `ship` its URL onto
+`video-script.md`.
+
+### `sync`: tick the seven from the files
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/advocacy-cycle/scripts/sync.py --repo <repo> --day0 <start_on>
+```
+
+It reads `.hub/hub.yml` (`public_repo`), every `published:` under
+`advocacy/content/`, `drips/*.md`, `published.log`, and the ledger's
+`90 day review` entry, and prints the tasks the files prove complete with
+the evidence. `--day0` is the project's `start_on`, needed only to judge
+whether the review entry is dated on or after the due date.
+
+Fetch the project's tasks, complete every task named under `complete` that
+is still open, and **never un-complete anything.** Print what changed, one
+line per task with its evidence, and print `unmatched` as is: a live URL on
+a host that is neither `blog_base_url` nor in `utm_domains` is reported,
+not guessed, and the user ticks that one by hand.
 
 ## Rules
 
-- **Never write ahead of an unapproved parent.** Not even a first pass, not
-  even to save a round trip.
 - **Never edit `advocacy/advocacy.md`.** The claim is frozen and it is
-  intake's file. If a draft contradicts it, the draft is wrong or the campaign
-  is over.
+  intake's file. If a draft contradicts it, the draft is wrong or the
+  campaign is over.
 - **Never write to `.hub/`.** That is project-hub's.
-- **Never copy the style contracts into a project repo.**
-- **Every rejection becomes a written rule with its reason.** Style-specific
-  ones go in that style's file, the way `technical.md` records why
-  lessons-learned framing is banned. Surface-neutral ones go here.
+- **Every fact comes from `notes.md`**, cited. No entry, no claim.
+- **Every rejection becomes a written rule with its reason.** Video ones go
+  in that style's file under `script-to-video/styles/`; everything else
+  goes here.
 - All prose follows the configured voice skill. No em dashes.
-
-## Notes
-
-- The cycle exits at published, but publishing is not distribution. Getting a
-  post read is a separate job and is deliberately outside this skill.
-- Vertical video is out of scope. Horizontal only; extract vertical by
-  hand if a clip earns it.
-- LinkedIn wants text plus images and voiceless demos rather than narrated
-  video. Its assets come from `advocacy/assets/`.

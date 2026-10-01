@@ -4,7 +4,7 @@ import sys, unittest, pathlib, tempfile, shutil, subprocess
 HERE = pathlib.Path(__file__).resolve().parent
 SCRIPT = HERE.parent / "scripts" / "write_advocacy.py"
 sys.path.insert(0, str(HERE.parent / "scripts"))
-from write_advocacy import render_advocacy_md, write_advocacy
+from write_advocacy import render_advocacy_md, set_asana_url, write_advocacy
 
 
 class TestRender(unittest.TestCase):
@@ -13,23 +13,37 @@ class TestRender(unittest.TestCase):
             project="dog-whisper",
             claim="A bark can be detected without a wake word.",
             reader="Anyone with a Pi and a noisy dog.",
-            surfaces=["personal_blog", "personal_video_script"],
             asana_url="https://app.asana.com/0/123",
         )
 
     def test_carries_the_pre_public_warning(self):
         self.assertIn("before this repo goes public", self.render())
 
-    def test_names_the_kept_surfaces(self):
+    def test_holds_the_claim_and_the_reader_and_nothing_to_pick(self):
+        """Every campaign gets the same seven, so there is no list of kept
+        surfaces to record here any more."""
         text = self.render()
-        self.assertIn("personal_blog", text)
-        self.assertIn("personal_video_script", text)
+        self.assertIn("A bark can be detected without a wake word.", text)
+        self.assertIn("Anyone with a Pi and a noisy dog.", text)
+        self.assertNotIn("## Surfaces", text)
 
     def test_links_asana(self):
         self.assertIn("https://app.asana.com/0/123", self.render())
 
     def test_no_em_dashes(self):
-        self.assertNotIn("—", self.render())
+        self.assertNotIn("\u2014", self.render())
+
+    def test_set_asana_url_touches_only_the_tracking_line(self):
+        pending = render_advocacy_md("p", "claim", "reader")
+        self.assertIn("Pending", pending)
+        updated = set_asana_url(pending, "https://app.asana.com/0/9")
+        self.assertIn("https://app.asana.com/0/9", updated)
+        self.assertNotIn("Pending", updated)
+        self.assertEqual(pending.split("## Where")[0], updated.split("## Where")[0])
+
+    def test_set_asana_url_refuses_a_file_with_no_tracking_section(self):
+        with self.assertRaises(ValueError):
+            set_asana_url("# nothing here\n", "https://x")
 
 
 class TestWrite(unittest.TestCase):
@@ -74,7 +88,6 @@ class TestCli(unittest.TestCase):
             repo=str(self.tmp), project="dog-whisper",
             claim="A bark can be detected without a wake word.",
             reader="Anyone with a Pi.",
-            surfaces="personal_blog,personal_video_script",
             asana_url="https://app.asana.com/0/123",
         )
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -85,14 +98,12 @@ class TestCli(unittest.TestCase):
     def test_a_second_run_fails_loudly_and_leaves_the_file_unchanged(self):
         self._run(
             repo=str(self.tmp), project="dog-whisper", claim="first claim",
-            reader="first reader", surfaces="personal_blog",
-            asana_url="https://x",
+            reader="first reader", asana_url="https://x",
         )
         before = (self.tmp / "advocacy" / "advocacy.md").read_text()
         result = self._run(
             repo=str(self.tmp), project="dog-whisper", claim="second claim",
-            reader="second reader", surfaces="personal_blog",
-            asana_url="https://y",
+            reader="second reader", asana_url="https://y",
         )
         self.assertNotEqual(result.returncode, 0)
         self.assertNotEqual(result.stderr.strip(), "")
@@ -106,12 +117,19 @@ class TestCli(unittest.TestCase):
         )
         self.assertNotEqual(result.returncode, 0)
 
+    def test_the_old_surfaces_flag_is_gone(self):
+        result = self._run(
+            repo=str(self.tmp), project="p", claim="c", reader="r",
+            surfaces="personal_blog",
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse((self.tmp / "advocacy").exists())
+
     def test_create_without_asana_url_does_not_claim_a_url_exists(self):
         result = self._run(
             repo=str(self.tmp), project="dog-whisper",
             claim="A bark can be detected without a wake word.",
             reader="Anyone with a Pi.",
-            surfaces="personal_blog",
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         text = (self.tmp / "advocacy" / "advocacy.md").read_text()
@@ -123,7 +141,6 @@ class TestCli(unittest.TestCase):
             repo=str(self.tmp), project="dog-whisper",
             claim="A bark can be detected without a wake word.",
             reader="Anyone with a Pi.",
-            surfaces="personal_blog",
         )
         target = self.tmp / "advocacy" / "advocacy.md"
         claim_before = target.read_text().split("## The reader")[0]
@@ -141,17 +158,6 @@ class TestCli(unittest.TestCase):
         self.assertEqual(claim_before, claim_after)
         self.assertIn("https://app.asana.com/0/999", text_after)
         self.assertNotIn("Pending", text_after)
-
-    def test_unknown_surface_key_exits_non_zero_and_creates_no_file(self):
-        result = self._run(
-            repo=str(self.tmp), project="dog-whisper",
-            claim="A bark can be detected without a wake word.",
-            reader="Anyone with a Pi.",
-            surfaces="personal_blog,not_a_real_surface",
-        )
-        self.assertNotEqual(result.returncode, 0)
-        self.assertNotEqual(result.stderr.strip(), "")
-        self.assertFalse((self.tmp / "advocacy").exists())
 
     def test_set_asana_url_against_a_missing_file_exits_non_zero_and_creates_nothing(self):
         result = subprocess.run(

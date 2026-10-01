@@ -1,212 +1,143 @@
 # tests/test_cycle_core.py
 from __future__ import annotations
+import datetime as dt
 import sys, unittest, pathlib, tempfile
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "scripts"))
 from cycle_core import (
-    STATUSES, STYLES, X_URL_BILLED_CHARS, Piece, billed_length, blocked_reason,
-    check_beats, check_citation, check_limits, content_path, content_tree,
-    apply_status, find_citations, gate_status, gate_task_title, open_beats,
-    parent_of, parse_frontmatter, post_body, split_posts, status_from_board,
-    status_of, surface_slug,
+    CONTENT_FILES, TITLES, X_URL_BILLED_CHARS, billed_length, body_of,
+    check_beats, check_citation, content_file, content_path, find_citations,
+    open_beats, parse_frontmatter, piece_status, post_body, published_urls,
+    review_date, scaffold, set_published, split_posts,
 )
-
-ALL = ["personal_blog", "personal_thread", "personal_linkedin",
-       "personal_video_script", "corporate_blog", "corporate_thread",
-       "corporate_linkedin"]
 
 
 class TestLayout(unittest.TestCase):
-    def test_a_blog_is_flat_because_it_has_no_variants(self):
-        self.assertEqual(str(content_path("personal_blog")),
-                         "content/personal/blog.md")
+    def test_three_files_flat_under_content(self):
+        """blog-base, the archetype takes, social. No branches, no
+        per-surface directories, nothing one level down."""
+        self.assertEqual([f.key for f in CONTENT_FILES], ["blog-base", "takes", "social"])
+        self.assertEqual(str(content_path("blog-base")), "content/blog-base.md")
+        self.assertEqual(str(content_path("takes")), "content/archetype-takes.md")
+        self.assertEqual(str(content_path("social")), "content/social.md")
+        for f in CONTENT_FILES:
+            self.assertEqual(len(f.path.parts), 2, f.path)
 
-    def test_a_blog_refuses_to_name_a_variant(self):
-        with self.assertRaises(ValueError):
-            content_path("corporate_blog", "fun")
+    def test_the_surface_is_the_filename_stem(self):
+        for f in CONTENT_FILES:
+            self.assertEqual(f.path.stem, f.surface)
 
-    def test_a_canonical_sits_at_the_top_of_its_own_directory(self):
-        self.assertEqual(str(content_path("personal_thread")),
-                         "content/personal/thread/thread.md")
+    def test_an_unknown_key_raises(self):
+        with self.assertRaises(KeyError):
+            content_path("blog")
 
-    def test_a_variant_sits_one_level_under_its_canonical(self):
-        self.assertEqual(str(content_path("personal_thread", "build-it-too")),
-                         "content/personal/thread/variants/thread-build-it-too.md")
+    def test_every_file_says_what_it_is_for(self):
+        for f in CONTENT_FILES:
+            self.assertTrue(f.job.strip(), f.key)
 
-    def test_directory_depth_is_the_gate(self):
-        """Gate B is everything at the top level, Gate C is everything one
-        level down. That is the property the layout exists for."""
-        for piece in content_tree(ALL):
-            depth = len(piece.path.parts)
-            if piece.gate == "B":
-                self.assertEqual(depth, 4, piece.path)
-            elif piece.gate == "C":
-                self.assertEqual(depth, 5, piece.path)
+    def test_the_seven_titles_are_the_ones_intake_owns(self):
+        """Imported, not redefined. One definition for the skill that
+        creates the tasks and the skill that ticks them."""
+        self.assertEqual(TITLES[0], "Public repo")
+        self.assertEqual(TITLES[-1], "90 day review")
+        self.assertEqual(len(TITLES), 7)
 
-    def test_the_style_suffix_is_the_style_key_verbatim(self):
-        for style in STYLES:
-            self.assertTrue(
-                str(content_path("corporate_linkedin", style)).endswith(
-                    "linkedin-%s.md" % style))
 
-    def test_the_branch_is_not_repeated_in_the_filename(self):
-        self.assertEqual(surface_slug("personal_video_script"), "video-script")
-        self.assertEqual(surface_slug("corporate_thread"), "thread")
+class TestScaffold(unittest.TestCase):
+    def test_frontmatter_only(self):
+        text = scaffold("social", "demo", "2026-10-01", "sam-style")
+        fm = parse_frontmatter(text)
+        self.assertEqual(fm["project"], "demo")
+        self.assertEqual(fm["surface"], "social")
+        self.assertEqual(fm["created"], "2026-10-01")
+        self.assertEqual(fm["passes"], "[sam-style, de-slop]")
+        self.assertEqual(fm["published"], [])
+        self.assertEqual(body_of(text), "")
+        self.assertEqual(piece_status(text), "empty")
 
-    def test_the_tree_is_twenty_seven_files(self):
-        """Two blogs, five canonicals, twenty variants."""
-        tree = content_tree(ALL)
-        self.assertEqual(len(tree), 27)
-        self.assertEqual(len([p for p in tree if p.gate == "A"]), 2)
-        self.assertEqual(len([p for p in tree if p.gate == "B"]), 5)
-        self.assertEqual(len([p for p in tree if p.gate == "C"]), 20)
+    def test_takes_carries_its_surface_name(self):
+        self.assertEqual(parse_frontmatter(scaffold("takes", "p", "2026-10-01"))["surface"],
+                         "archetype-takes")
 
-    def test_every_path_is_unique(self):
-        paths = [str(p.path) for p in content_tree(ALL)]
-        self.assertEqual(len(paths), len(set(paths)))
-
-    def test_a_derivative_without_its_blog_is_an_error(self):
-        with self.assertRaises(ValueError):
-            content_tree(["personal_thread"])
-
-    def test_a_smaller_campaign_makes_a_smaller_tree(self):
-        tree = content_tree(["personal_blog", "personal_thread"])
-        self.assertEqual(len(tree), 1 + 1 + len(STYLES))
+    def test_no_em_dashes(self):
+        for f in CONTENT_FILES:
+            self.assertNotIn("\u2014", scaffold(f.key, "p", "2026-10-01"))
+            self.assertNotIn("\u2014", content_file(f.key).job)
 
 
 class TestFrontmatter(unittest.TestCase):
     DOC = ("---\n"
-           "surface: personal-blog\n"
-           "status: approved\n"
+           "surface: blog-base\n"
            "published:\n"
-           "beats:\n"
-           "  - the front page is text and I wanted it as audio\n"
-           "  - why batch and not streaming\n"
+           "links:\n"
+           "  - https://a.example/one\n"
+           "  - https://a.example/two\n"
            "---\n"
            "\n# Title\n\nBody.\n")
 
     def test_scalars_and_lists(self):
         data = parse_frontmatter(self.DOC)
-        self.assertEqual(data["status"], "approved")
+        self.assertEqual(data["surface"], "blog-base")
         self.assertEqual(data["published"], [])
-        self.assertEqual(len(data["beats"]), 2)
+        self.assertEqual(len(data["links"]), 2)
 
     def test_no_frontmatter_is_not_an_error(self):
         self.assertEqual(parse_frontmatter("# Just a heading\n"), {})
 
-    def test_status_of(self):
-        self.assertEqual(status_of(self.DOC), "approved")
-        self.assertIsNone(status_of("# nothing\n"))
+    def test_an_empty_frontmatter_block_still_matches(self):
+        self.assertEqual(body_of("---\n---\nprose\n"), "prose")
 
-    def test_a_misspelled_status_raises_rather_than_reading_as_unapproved(self):
-        """`status: aproved` must not quietly hold the whole branch."""
+
+class TestPublished(unittest.TestCase):
+    def test_an_empty_published_line_is_no_urls(self):
+        self.assertEqual(published_urls("---\npublished:\n---\nx\n"), [])
+
+    def test_one_url(self):
+        self.assertEqual(published_urls("---\npublished: https://a.example/p\n---\n"),
+                         ["https://a.example/p"])
+
+    def test_two_homes_for_one_piece(self):
+        """The company blog and a personal mirror. Space or comma separated,
+        or a list: all three read the same."""
+        for value in ("https://a.example/p https://b.example/p",
+                      "https://a.example/p, https://b.example/p"):
+            self.assertEqual(published_urls("---\npublished: %s\n---\n" % value),
+                             ["https://a.example/p", "https://b.example/p"])
+        listed = "---\npublished:\n  - https://a.example/p\n  - https://b.example/p\n---\n"
+        self.assertEqual(published_urls(listed),
+                         ["https://a.example/p", "https://b.example/p"])
+
+    def test_a_non_url_value_is_ignored(self):
+        self.assertEqual(published_urls("---\npublished: pending\n---\n"), [])
+
+    def test_set_published_fills_the_empty_line(self):
+        out = set_published("---\nsurface: blog-base\npublished:\n---\nBody.\n",
+                            "https://a.example/p")
+        self.assertIn("published: https://a.example/p", out)
+        self.assertIn("surface: blog-base", out)
+        self.assertIn("Body.", out)
+        self.assertEqual(out.count("published:"), 1)
+
+    def test_set_published_appends_a_second_home(self):
+        once = set_published("---\npublished:\n---\nx\n", "https://a.example/p")
+        twice = set_published(once, "https://b.example/p")
+        self.assertEqual(published_urls(twice),
+                         ["https://a.example/p", "https://b.example/p"])
+        self.assertEqual(twice.count("published:"), 1)
+
+    def test_set_published_is_idempotent(self):
+        once = set_published("---\npublished:\n---\nx\n", "https://a.example/p")
+        self.assertEqual(set_published(once, "https://a.example/p"), once)
+
+    def test_set_published_adds_frontmatter_when_there_is_none(self):
+        out = set_published("# Title\n", "https://a.example/p")
+        self.assertTrue(out.startswith("---\n"))
+        self.assertEqual(published_urls(out), ["https://a.example/p"])
+
+    def test_set_published_refuses_a_non_url(self):
         with self.assertRaises(ValueError):
-            status_of("---\nstatus: aproved\n---\n")
-
-    def test_every_declared_status_parses(self):
-        for value in STATUSES:
-            self.assertEqual(status_of("---\nstatus: %s\n---\n" % value), value)
-
-
-class TestNothingDerivesFromAnUnapprovedParent(unittest.TestCase):
-    def setUp(self):
-        self.tree = {(p.surface, p.style): p for p in content_tree(ALL)}
-
-    def test_a_blog_answers_to_nothing(self):
-        self.assertIsNone(parent_of(self.tree[("personal_blog", None)]))
-
-    def test_a_canonical_answers_to_its_branch_blog(self):
-        parent = parent_of(self.tree[("personal_thread", None)])
-        self.assertEqual(str(parent.path), "content/personal/blog.md")
-
-    def test_a_variant_answers_to_its_canonical(self):
-        parent = parent_of(self.tree[("corporate_linkedin", "fun")])
-        self.assertEqual(str(parent.path),
-                         "content/corporate/linkedin/linkedin.md")
-
-    def test_the_branches_never_cross(self):
-        for piece in content_tree(ALL):
-            parent = parent_of(piece)
-            if parent is None:
-                continue
-            self.assertIn("/%s/" % piece.path.parts[1], "/%s/" % parent.path.parts[1])
-
-    def test_an_approved_parent_unblocks(self):
-        piece = self.tree[("personal_thread", None)]
-        self.assertIsNone(blocked_reason(
-            piece, {"content/personal/blog.md": "approved"}))
-
-    def test_a_published_parent_also_unblocks(self):
-        piece = self.tree[("personal_thread", None)]
-        self.assertIsNone(blocked_reason(
-            piece, {"content/personal/blog.md": "published"}))
-
-    def test_a_drafted_parent_blocks(self):
-        piece = self.tree[("personal_thread", None)]
-        reason = blocked_reason(piece, {"content/personal/blog.md": "drafted"})
-        self.assertIn("not approved", reason)
-
-    def test_a_missing_parent_blocks(self):
-        piece = self.tree[("personal_thread", None)]
-        self.assertIn("does not exist", blocked_reason(piece, {}))
-
-    def test_an_approved_canonical_does_not_unblock_from_a_drafted_blog(self):
-        """The chain is checked one link at a time on purpose: a variant asks
-        its canonical, and the canonical asks the blog."""
-        canonical = self.tree[("personal_thread", None)]
-        self.assertIsNotNone(blocked_reason(
-            canonical, {"content/personal/blog.md": "drafted"}))
-
-
-class TestLimits(unittest.TestCase):
-    def test_a_url_is_billed_flat_no_matter_how_long(self):
-        short = "see https://a.co"
-        longer = "see https://example.com/" + "x" * 300
-        self.assertEqual(billed_length(short), billed_length(longer))
-
-    def test_billing_is_what_decides_whether_a_post_fits(self):
-        """A post counted naively reads far longer than it posts, and gets
-        cut for nothing."""
-        post = "Read it: https://example.com/" + "x" * 300
-        self.assertGreater(len(post), 280)
-        self.assertLess(billed_length(post), 280)
-        self.assertEqual(check_limits("---\n---\n" + post, "personal_thread"), [])
-
-    def test_an_over_limit_post_is_found(self):
-        text = "---\n---\n" + "x" * 300
-        findings = check_limits(text, "personal_thread")
-        self.assertEqual(len(findings), 1)
-        self.assertIn("limit is 280", findings[0].what)
-
-    def test_each_post_in_a_thread_is_counted_separately(self):
-        text = "---\n---\nfine\n\n---\n\n" + "x" * 300 + "\n\n---\n\nalso fine\n"
-        findings = check_limits(text, "personal_thread")
-        self.assertEqual([f.where for f in findings], ["post 2"])
-
-    def test_three_links_in_one_post_is_a_finding(self):
-        post = "a https://a.co b https://b.co c https://c.co"
-        findings = check_limits("---\n---\n" + post, "personal_thread")
-        self.assertTrue(any("belongs in a reply" in f.what for f in findings))
-
-    def test_two_links_is_fine(self):
-        post = "a https://a.co b https://b.co"
-        self.assertEqual(check_limits("---\n---\n" + post, "personal_thread"), [])
-
-    def test_a_blog_is_counted_in_words_once_not_per_post(self):
-        text = "---\n---\n" + ("word " * 1300)
-        findings = check_limits(text, "personal_blog")
-        self.assertEqual(len(findings), 1)
-        self.assertIn("1200", findings[0].what)
-
-    def test_frontmatter_does_not_count_toward_the_limit(self):
-        body = "x" * 270
-        text = "---\nsurface: personal-thread\nstatus: drafted\n---\n" + body
-        self.assertEqual(check_limits(text, "personal_thread"), [])
-
-    def test_linkedin_gets_its_own_larger_limit(self):
-        text = "---\n---\n" + "x" * 2900
-        self.assertEqual(check_limits(text, "personal_linkedin"), [])
+            set_published("---\n---\nx\n", "not a url")
 
 
 class TestBeats(unittest.TestCase):
@@ -215,9 +146,9 @@ class TestBeats(unittest.TestCase):
     are the sections still unwritten."""
 
     DRAFT = (
-        "---\nstatus: drafted\n---\n"
+        "---\nsurface: blog-base\npublished:\n---\n"
         "<!-- TITLE ------------------------------------------------\n"
-        "     What it was like, not what it is.\n-->\n"
+        "     What it is, not what it was like.\n-->\n"
         "# A title\n\n"
         "<!-- COLD OPEN ................................... 60-100 w\n"
         "     Job: the honest reaction, before the project exists.\n-->\n"
@@ -229,31 +160,70 @@ class TestBeats(unittest.TestCase):
                          ["TITLE", "COLD OPEN", "WHAT IT IS, FAST"])
 
     def test_a_finished_section_leaves_no_beat(self):
-        self.assertEqual(open_beats("---\nstatus: drafted\n---\n# Title\n\nProse.\n"), [])
+        self.assertEqual(open_beats("---\n---\n# Title\n\nProse.\n"), [])
 
     def test_an_ordinary_comment_is_not_a_beat(self):
-        """Only a section scaffold counts. A note to self is not one."""
         text = "<!-- fix this later -->\n<!-- see also the other file -->\n"
         self.assertEqual(open_beats(text), [])
 
     def test_open_beats_on_a_draft_are_not_a_finding(self):
-        """That is just what a draft looks like."""
         self.assertEqual(check_beats(self.DRAFT), [])
 
-    def test_open_beats_on_an_approved_piece_are_findings(self):
+    def test_open_beats_on_a_live_piece_are_findings(self):
         """Guide text shipping, or a section the outline asked for that
         nobody noticed was never written. It has happened."""
-        approved = self.DRAFT.replace("status: drafted", "status: approved")
-        findings = check_beats(approved)
-        self.assertEqual([f.where for f in findings],
+        live = self.DRAFT.replace("published:", "published: https://a.example/p")
+        self.assertEqual([f.where for f in check_beats(live)],
                          ["TITLE", "COLD OPEN", "WHAT IT IS, FAST"])
 
-    def test_a_published_piece_with_no_beats_is_clean(self):
-        text = "---\nstatus: published\n---\n# Title\n\nProse.\n"
-        self.assertEqual(check_beats(text), [])
+    def test_a_live_piece_with_no_beats_is_clean(self):
+        self.assertEqual(check_beats("---\npublished: https://a.example/p\n---\nProse.\n"), [])
 
-    def test_status_can_be_passed_in_rather_than_parsed(self):
-        self.assertEqual(len(check_beats(self.DRAFT, status="published")), 3)
+
+class TestPieceStatus(unittest.TestCase):
+    """Status is derived from the file and nothing else. There is no
+    `status:` key to hand-write and no board to cache."""
+
+    def test_empty(self):
+        self.assertEqual(piece_status("---\nsurface: social\npublished:\n---\n"), "empty")
+
+    def test_drafting_while_any_beat_is_open(self):
+        self.assertEqual(piece_status(TestBeats.DRAFT), "drafting")
+        self.assertEqual(piece_status("---\n---\n<!-- HOOK ..... 20 w\n-->\n"), "drafting")
+
+    def test_written_once_the_beats_are_gone_and_prose_is_in(self):
+        self.assertEqual(piece_status("---\n---\n# Title\n\nProse.\n"), "written")
+
+    def test_published_beats_everything(self):
+        live = TestBeats.DRAFT.replace("published:", "published: https://a.example/p")
+        self.assertEqual(piece_status(live), "published")
+
+    def test_a_plain_comment_is_not_prose(self):
+        self.assertEqual(piece_status("---\n---\n<!-- todo -->\n"), "empty")
+
+
+class TestPosts(unittest.TestCase):
+    def test_a_url_is_billed_flat_no_matter_how_long(self):
+        short = "see https://a.co"
+        longer = "see https://example.com/" + "x" * 300
+        self.assertEqual(billed_length(short), billed_length(longer))
+        self.assertEqual(billed_length("https://a.co"), X_URL_BILLED_CHARS)
+
+    def test_posts_are_split_on_numbered_headings(self):
+        text = ("---\n---\n"
+                "# X thread\n\nThis file explains itself. Not post one.\n\n"
+                "## 1\n\nFirst post.\n\n## 2\n\nSecond post.\n")
+        self.assertEqual(split_posts(text), ["First post.", "Second post."])
+
+    def test_a_rule_of_dashes_still_works_as_a_fallback(self):
+        self.assertEqual(split_posts("---\n---\nalpha\n\n---\n\nbeta\n"), ["alpha", "beta"])
+
+    def test_the_post_body_stops_at_the_first_annotation(self):
+        self.assertEqual(post_body("real text\n\n`99 characters` of 280\n> note"),
+                         "real text")
+
+    def test_a_post_with_no_annotation_is_unchanged(self):
+        self.assertEqual(post_body("just the post"), "just the post")
 
 
 class TestCitations(unittest.TestCase):
@@ -277,64 +247,18 @@ class TestCitations(unittest.TestCase):
             self.assertEqual(finding.what, "no such file")
 
     def test_a_range_past_the_end_is_found(self):
-        """The reshoot case: a module split moved the code and the range now
-        points past the end of a file that still exists."""
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)
             (root / "w.py").write_text("a\nb\n")
-            finding = check_citation(root, "w.py", 271, 276)
-            self.assertIn("2 lines", finding.what)
+            self.assertIn("2 lines", check_citation(root, "w.py", 271, 276).what)
 
     def test_a_range_that_is_now_blank_is_found(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)
             (root / "w.py").write_text("a\n\n\n\nb\n")
-            finding = check_citation(root, "w.py", 2, 4)
-            self.assertIn("blank", finding.what)
-
-
-class TestGateStatus(unittest.TestCase):
-    def test_an_untouched_campaign_is_all_missing(self):
-        pieces = content_tree(ALL)
-        status = gate_status(pieces, {})
-        self.assertEqual(status["A"]["missing"], 2)
-        self.assertEqual(status["C"]["total"], 20)
-
-    def test_counts_land_in_the_right_gate(self):
-        pieces = content_tree(ALL)
-        status = gate_status(pieces, {"content/personal/blog.md": "approved"})
-        self.assertEqual(status["A"]["approved"], 1)
-        self.assertEqual(status["A"]["missing"], 1)
-
-
-if __name__ == "__main__":
-    unittest.main()
-
-
-class TestRealFormatsFoundByMigration(unittest.TestCase):
-    """Both of these passed the synthetic tests and were wrong about how the
-    content is actually written. Migrating a real campaign found them."""
-
-    def test_posts_are_split_on_numbered_headings(self):
-        text = ("---\nstatus: approved\n---\n"
-                "# X thread\n\nThis file explains itself. Not post one.\n\n"
-                "## 1\n\nFirst post.\n\n## 2\n\nSecond post.\n")
-        self.assertEqual(split_posts(text), ["First post.", "Second post."])
-
-    def test_the_preamble_is_not_counted_as_a_post(self):
-        """Counting it reported a 5,483 character violation on a thread that
-        was fine."""
-        text = ("---\n---\n# Title\n\n" + "x" * 400 +
-                "\n\n## 1\n\nshort post\n")
-        self.assertEqual(check_limits(text, "personal_thread"), [])
-
-    def test_a_rule_of_dashes_still_works_as_a_fallback(self):
-        text = "---\n---\nalpha\n\n---\n\nbeta\n"
-        self.assertEqual(split_posts(text), ["alpha", "beta"])
+            self.assertIn("blank", check_citation(root, "w.py", 2, 4).what)
 
     def test_a_citation_resolves_by_suffix_inside_a_package(self):
-        """`render.py:4-5` means the render.py in this repo, not one sitting
-        at the root. Otherwise every module inside a package reads as rotted."""
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)
             (root / "hn_radio").mkdir()
@@ -347,129 +271,44 @@ class TestRealFormatsFoundByMigration(unittest.TestCase):
             for pkg in ("a", "b"):
                 (root / pkg).mkdir()
                 (root / pkg / "render.py").write_text("x\n" * 10)
-            finding = check_citation(root, "render.py", 1, 2)
-            self.assertIn("ambiguous", finding.what)
-
-    def test_a_genuinely_missing_file_is_still_found(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            finding = check_citation(pathlib.Path(tmp), "writers.py", 271, 276)
-            self.assertEqual(finding.what, "no such file")
-
-    def test_production_notes_do_not_count_toward_a_post(self):
-        """A post carries its own character count and blockquoted image notes
-        after the text. None of it posts, so none of it counts. Counting it
-        reported every post in a clean nine-post thread as double its length."""
-        text = ("---\nstatus: approved\n---\n"
-                "## 1\n\n" + "x" * 250 + "\n\n"
-                "`251 characters` of 280\n\n"
-                "> **Image:** the meme, same one that opens the blog, at\n"
-                "> assets/cold-open-meme.png. Already captured. Alternative if\n"
-                "> the meme reads as too casual for a first impression.\n")
-        self.assertEqual(check_limits(text, "personal_thread"), [])
-
-    def test_the_post_body_stops_at_the_first_annotation(self):
-        self.assertEqual(post_body("real text\n\n`99 characters` of 280\n> note"),
-                         "real text")
-
-    def test_a_post_with_no_annotation_is_unchanged(self):
-        self.assertEqual(post_body("just the post"), "just the post")
-
-    def test_an_over_limit_post_is_still_caught_after_stripping(self):
-        text = "---\nstatus: approved\n---\n## 1\n\n" + "x" * 400 + "\n\n`400 characters`\n"
-        findings = check_limits(text, "personal_thread")
-        self.assertEqual(len(findings), 1)
-        self.assertIn("400 chars", findings[0].what)
+            self.assertIn("ambiguous", check_citation(root, "render.py", 1, 2).what)
 
 
-class TestTheBoardIsTheSourceOfTruth(unittest.TestCase):
-    """Asana owns gate state. A gate task marked complete IS that piece being
-    approved. The file carries a cache of that answer and never the reverse."""
+class TestReviewDate(unittest.TestCase):
+    """The ledger groups entries under `## YYYY-MM-DD` day headings with
+    `### [tag] title` entries beneath. The review's date is the day heading
+    above it unless the review heading carries its own."""
 
-    def setUp(self):
-        self.tree = content_tree(ALL)
-        self.by = {(p.surface, p.style): p for p in self.tree}
+    LEDGER = ("# demo build ledger\n\n"
+              "## 2026-08-01\n\n### [decision] Ship it\nText.\n\n"
+              "## 2026-11-30\n\n### [review] 90 day review\nFive lines.\n")
 
-    def test_titles_match_the_ones_intake_files(self):
-        self.assertEqual(gate_task_title(self.by[("personal_blog", None)]),
-                         "Gate A: Personal blog, edit to publish ready")
-        self.assertEqual(gate_task_title(self.by[("personal_thread", None)]),
-                         "Gate B: Personal thread, edit to publish ready")
-        self.assertEqual(gate_task_title(self.by[("personal_thread", "build-it-too")]),
-                         "Gate C: Personal thread, build-it-too variant")
+    def test_the_review_takes_the_day_heading_above_it(self):
+        self.assertEqual(review_date(self.LEDGER), dt.date(2026, 11, 30))
 
-    def test_every_piece_maps_to_a_distinct_task(self):
-        """A collision would make one task approve two pieces."""
-        titles = [gate_task_title(p) for p in self.tree]
-        self.assertEqual(len(titles), len(set(titles)))
+    def test_a_date_in_the_review_heading_wins(self):
+        text = "## 2026-08-01\n\n## 90 day review (2026-12-02)\nlines\n"
+        self.assertEqual(review_date(text), dt.date(2026, 12, 2))
 
-    def test_a_completed_task_approves_its_piece(self):
-        paths = {str(p.path) for p in self.tree}
-        status = status_from_board(
-            self.tree, ["Gate B: Personal thread, edit to publish ready"],
-            existing_paths=paths)
-        self.assertEqual(status["content/personal/thread/thread.md"], "approved")
+    def test_a_bare_review_heading_at_the_top_level_counts(self):
+        text = "## 2026-12-01\n\n## 90 day review\nlines\n"
+        self.assertEqual(review_date(text), dt.date(2026, 12, 1))
 
-    def test_an_incomplete_task_leaves_the_piece_drafted(self):
-        paths = {str(p.path) for p in self.tree}
-        status = status_from_board(self.tree, [], existing_paths=paths)
-        self.assertEqual(status["content/personal/thread/thread.md"], "drafted")
+    def test_no_review_is_none(self):
+        self.assertIsNone(review_date("## 2026-08-01\n\n### [decision] Ship it\n"))
 
-    def test_a_file_that_does_not_exist_is_absent_not_drafted(self):
-        """blocked_reason has to be able to say 'does not exist yet', which
-        is a different problem from 'exists and is not approved'."""
-        status = status_from_board(self.tree, [], existing_paths=set())
-        self.assertEqual(status, {})
+    def test_a_review_with_no_date_anywhere_is_none(self):
+        self.assertIsNone(review_date("# ledger\n\n### 90 day review\nlines\n"))
 
-    def test_published_comes_from_the_file_not_the_board(self):
-        """A live URL is a fact about the world. No checkbox can tell you."""
-        paths = {str(p.path) for p in self.tree}
-        status = status_from_board(
-            self.tree, [], existing_paths=paths,
-            published_by_path={"content/personal/blog.md": "https://example.com/x"})
-        self.assertEqual(status["content/personal/blog.md"], "published")
+    def test_the_latest_review_wins(self):
+        text = ("## 2026-11-30\n\n### [review] 90 day review\na\n\n"
+                "## 2026-12-15\n\n### [review] 90 day review, second look\nb\n")
+        self.assertEqual(review_date(text), dt.date(2026, 12, 15))
 
-    def test_the_board_unblocks_a_derivative(self):
-        """The whole point: complete the Gate A task, and Gate B opens."""
-        piece = self.by[("personal_thread", None)]
-        paths = {str(p.path) for p in self.tree}
-        blocked = status_from_board(self.tree, [], existing_paths=paths)
-        self.assertIsNotNone(blocked_reason(piece, blocked))
-        open_ = status_from_board(
-            self.tree, ["Gate A: Personal blog, edit to publish ready"],
-            existing_paths=paths)
-        self.assertIsNone(blocked_reason(piece, open_))
+    def test_case_does_not_matter(self):
+        self.assertEqual(review_date("## 2026-11-30\n\n### [Review] 90 Day Review\n"),
+                         dt.date(2026, 11, 30))
 
 
-class TestTheFileIsOnlyACache(unittest.TestCase):
-    def test_the_cache_is_written_with_the_date_it_was_synced(self):
-        out = apply_status("---\nsurface: personal-blog\n---\nProse.\n",
-                           "approved", "2026-08-28")
-        self.assertIn("status: approved", out)
-        self.assertIn("status_synced: 2026-08-28", out)
-        self.assertEqual(status_of(out), "approved")
-
-    def test_rewriting_replaces_rather_than_appends(self):
-        once = apply_status("---\nstatus: drafted\n---\nx\n", "approved", "2026-08-28")
-        twice = apply_status(once, "published", "2026-08-29")
-        lines = twice.split("\n")
-        self.assertEqual(len([l for l in lines if l.startswith("status:")]), 1)
-        self.assertEqual(len([l for l in lines if l.startswith("status_synced:")]), 1)
-        self.assertIn("status_synced: 2026-08-29", twice)
-        self.assertEqual(status_of(twice), "published")
-
-    def test_the_rest_of_the_frontmatter_survives(self):
-        out = apply_status(
-            "---\nsurface: personal-blog\npublished: https://example.com/x\n---\nBody.\n",
-            "published", "2026-08-28")
-        self.assertIn("surface: personal-blog", out)
-        self.assertIn("published: https://example.com/x", out)
-        self.assertIn("Body.", out)
-
-    def test_a_file_with_no_frontmatter_gets_one(self):
-        out = apply_status("# Title\n\nProse.\n", "drafted", "2026-08-28")
-        self.assertTrue(out.startswith("---\n"))
-        self.assertEqual(status_of(out), "drafted")
-
-    def test_an_unknown_status_is_refused(self):
-        with self.assertRaises(ValueError):
-            apply_status("---\n---\nx\n", "aproved", "2026-08-28")
+if __name__ == "__main__":
+    unittest.main()

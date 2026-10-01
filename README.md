@@ -1,10 +1,10 @@
 # advocacy-workflow
 
 A Claude Code plugin. Turns a project you have finished into a content campaign, and tracks the
-whole thing in Asana.
+whole thing as seven flat tasks in Asana.
 
-One build becomes two blog posts, five canonical derivatives, twenty style variants and four
-videos, through four review gates that are all yours.
+One build becomes a base post, six archetype takes, twelve social posts, a drip per shipped piece,
+and a video. The board records what went live, and the files are what tick it.
 
 Employer-agnostic on purpose. No skill names a company. The one product dependency is the video
 renderer, which calls Deepgram for speech synthesis and word timings.
@@ -49,28 +49,34 @@ Exits non-zero while anything is unanswered.
 
 | Skill | Runs | Produces |
 |---|---|---|
-| `advocacy-intake` | Once, when you decide a project is content | `advocacy/advocacy.md`, and gates A and B on the board |
-| `advocacy-cycle` | Repeatedly, after the build is done | the `advocacy/content/` tree, gates C and D, and the drafts |
-| `script-to-video` | From an approved video script | narrated placeholder videos to re-record against |
+| `advocacy-intake` | Once, when you decide a project is content | `advocacy/advocacy.md`, day 0, and the seven tasks |
+| `advocacy-cycle` | Repeatedly, after the build is done | `advocacy/notes.md`, the `advocacy/content/` files, the drips, and the Asana ticks |
+| `script-to-video` | From a video script | narrated placeholder videos to re-record against |
 | `personal-style` | Drafting in an advocate's own voice | prose |
 | `corporate-style` | Drafting in the company voice | prose |
-| `de-slop` | Before every gate | the machine fingerprints taken out |
+| `de-slop` | Before every handover | the machine fingerprints taken out |
 | `x-article` | When an approved draft ships as an X Article | the X-ready draft, its paste page and 5:2 cover, the blog mirror, and a 10 to 15 post series with a schedule |
 | `last-looks` | Right before anything ships or posts | de-slop and the voice pass, then every mechanical check (numbers, links, UTMs, images, limits, the video standard), one finding per line and a verdict per file |
 
-## The gates
+## The seven tasks
+
+Every promoted campaign gets one Asana project with the same seven flat tasks, no sections, no
+subtasks, in this order:
 
 ```
-notes.md          every fact, cited, out of the build ledger
-  two blogs                                     GATE A
-    five canonicals                             GATE B
-      twenty style variants                     GATE C
-        four horizontal base layers             GATE D
+Public repo
+Personal blog live
+Corporate blog live
+X Article live
+Drip written and scheduled
+Video live
+90 day review          the only one with a due date: day 0 plus 90
 ```
 
-**Nothing derives from an unapproved parent, at any level.** You pass a gate by completing its task
-in Asana. Asana is the source of truth for gate state; the files carry a dated cache of it and
-never the reverse.
+Ticking a task is both the approval and the record. Explorations have zero tasks. Status comes
+from the files, and `advocacy-cycle sync` ticks the board from them in one direction: `public_repo`
+in `hub.yml`, a `published:` URL in a content file, a drip with six written posts, a dated review
+entry in the ledger. Nothing is ever unticked by a script.
 
 ## Your own voice
 
@@ -80,14 +86,13 @@ ghostwrite for somebody else: point it at their voice skill.
 
 ## Full guide
 
-[`docs/user-guide.html`](docs/user-guide.html) is the read-cold version: every command, every Asana
-action, and every file that lands where, from an empty folder through the public flip. Open it in a
-browser.
+[`docs/user-guide.html`](docs/user-guide.html) is the read-cold version. It predates the seven-task
+model and still describes the earlier board; the skills are the reference until it is regenerated.
 
 ## Tests
 
 ```bash
-python3 -m pytest -q     # 312, every skill, from the repo root
+python3 -m pytest -q     # every skill, from the repo root
 ```
 
 The interesting half is pure functions over data, so it tests without an Asana token and without a

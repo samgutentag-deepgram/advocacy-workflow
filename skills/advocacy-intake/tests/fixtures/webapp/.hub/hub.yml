@@ -1,0 +1,10 @@
+# webapp hub config. Flipped on 2026-09-01.
+title: Webapp
+# A commented-out mention must not count:
+#   public_repo: https://github.com/example/not-this-one
+
+asana:
+  project: "1200000000000001"
+  url: https://app.asana.com/0/1200000000000001
+
+public_repo: https://github.com/example/webapp

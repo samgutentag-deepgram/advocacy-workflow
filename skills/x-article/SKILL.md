@@ -28,8 +28,8 @@ Everything is read from, and written to, the project's `advocacy/` tree. Nothing
 | `advocacy/content/x-article.md`, `x-article-paste.html`, `x-cover-5x2.png`, `x-series.md` | **What this skill writes** |
 
 - **The source has to be approved. Refuse it otherwise.** `blog-base.md` counts as approved when its
-  frontmatter has `status: approved` or a `published:` URL, or when the project's Asana Gate A task
-  (the "edit to publish ready" task) is complete. A `drafted` base is refused, the same as any
+  frontmatter has `status: approved` or a `published:` URL. The campaign's Asana tasks record what
+  went live, not what is approved, so they do not count here. A `drafted` base is refused, the same as any
   unreviewed draft, because the mirror copies it and its mistakes would ship twice. When
   `blog-base.md` only points to a live post, **the live post is the source**: read the published
   text, not an older draft.

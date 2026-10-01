@@ -4,7 +4,7 @@ import shutil, subprocess, sys, tempfile, unittest, pathlib
 HERE = pathlib.Path(__file__).resolve().parent
 SCRIPTS = HERE.parent / "scripts"
 sys.path.insert(0, str(SCRIPTS))
-from intake_core import read_signals
+from intake_core import public_repo_in, read_public_repo, read_signals
 
 
 class TestSignals(unittest.TestCase):
@@ -14,6 +14,7 @@ class TestSignals(unittest.TestCase):
         self.assertFalse(s.has_deploy)
         self.assertEqual(s.capture_plan, ".hub/capture-plan.md")
         self.assertFalse(s.has_license)
+        self.assertIsNone(s.public_repo)
 
     def test_webapp_has_a_deploy_and_no_ledger(self):
         s = read_signals(HERE / "fixtures" / "webapp")
@@ -26,14 +27,14 @@ class TestSignals(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             read_signals(HERE / "fixtures" / "does_not_exist")
 
-    def test_gate_doc_is_found_when_present(self):
+    def test_legal_doc_is_found_when_present(self):
         s = read_signals(HERE / "fixtures" / "gated")
-        self.assertEqual(s.gate_doc, "docs/legal.md")
+        self.assertEqual(s.legal_doc, "docs/legal.md")
         self.assertTrue(s.has_license)
 
-    def test_gate_doc_is_none_when_absent(self):
+    def test_legal_doc_is_none_when_absent(self):
         for name in ("dog_whisper", "webapp"):
-            self.assertIsNone(read_signals(HERE / "fixtures" / name).gate_doc)
+            self.assertIsNone(read_signals(HERE / "fixtures" / name).legal_doc)
 
     def test_git_init_with_nothing_committed_has_no_content(self):
         # git cannot track an empty directory, so a committed fixture cannot
@@ -57,8 +58,7 @@ class TestSignals(unittest.TestCase):
         try:
             (pathlib.Path(tmp) / ".git").mkdir()
             result = subprocess.run(
-                [sys.executable, str(SCRIPTS / "intake_core.py"),
-                 "--tasks", tmp, "--surfaces", "personal_blog"],
+                [sys.executable, str(SCRIPTS / "intake_core.py"), "--tasks", tmp],
                 capture_output=True, text=True,
             )
             self.assertNotEqual(result.returncode, 0)
@@ -67,12 +67,10 @@ class TestSignals(unittest.TestCase):
             shutil.rmtree(tmp)
 
     def test_reconcile_cli_also_refuses_an_empty_repo(self):
-        # Mirrors test_tasks_cli_refuses_an_empty_repo: --reconcile reaches
-        # build_tasks by the same route --tasks does, and must refuse the
-        # same way rather than printing a full create/keep/untouched graph
-        # for a repo with nothing in it. The titles file lives in a
-        # separate temp dir so writing it does not itself give the repo
-        # content and quietly defeat the test.
+        # --reconcile reaches build_tasks by the same route --tasks does, and
+        # must refuse the same way rather than printing a create list for a
+        # repo with nothing in it. The titles file lives in a separate temp
+        # dir so writing it does not itself give the repo content.
         repo_tmp = tempfile.mkdtemp()
         other_tmp = tempfile.mkdtemp()
         try:
@@ -81,7 +79,7 @@ class TestSignals(unittest.TestCase):
             titles_file.write_text("")
             result = subprocess.run(
                 [sys.executable, str(SCRIPTS / "intake_core.py"),
-                 "--reconcile", repo_tmp, "--surfaces", "personal_blog",
+                 "--reconcile", repo_tmp,
                  "--existing-titles-file", str(titles_file)],
                 capture_output=True, text=True,
             )
@@ -90,6 +88,35 @@ class TestSignals(unittest.TestCase):
         finally:
             shutil.rmtree(repo_tmp)
             shutil.rmtree(other_tmp)
+
+
+class TestPublicRepo(unittest.TestCase):
+    """`public_repo:` in .hub/hub.yml is the only signal that the flip
+    happened. It pre-completes the first of the seven."""
+
+    def test_a_flipped_hub_reports_its_public_twin(self):
+        self.assertEqual(read_public_repo(HERE / "fixtures" / "webapp"),
+                         "https://github.com/example/webapp")
+        self.assertEqual(read_signals(HERE / "fixtures" / "webapp").public_repo,
+                         "https://github.com/example/webapp")
+
+    def test_a_commented_out_key_does_not_count(self):
+        """One real hub.yml carries a comment explaining why it deliberately
+        has no public_repo key. That comment must not read as a flip."""
+        text = ("# Deliberately no public_repo key, even though the repo is public.\n"
+                "#   public_repo: https://github.com/example/nope\n"
+                "title: Thing\n")
+        self.assertIsNone(public_repo_in(text))
+
+    def test_quotes_and_trailing_comments_are_stripped(self):
+        self.assertEqual(public_repo_in('public_repo: "https://x.example/r"  # flipped\n'),
+                         "https://x.example/r")
+
+    def test_an_empty_value_is_none(self):
+        self.assertIsNone(public_repo_in("public_repo:\n"))
+
+    def test_no_hub_at_all_is_none(self):
+        self.assertIsNone(read_public_repo(HERE / "fixtures" / "gated"))
 
 
 if __name__ == "__main__":
