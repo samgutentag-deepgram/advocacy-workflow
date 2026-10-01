@@ -86,8 +86,8 @@ ghostwrite for somebody else: point it at their voice skill.
 
 ## Full guide
 
-[`docs/user-guide.html`](docs/user-guide.html) is the read-cold version. It predates the seven-task
-model and still describes the earlier board; the skills are the reference until it is regenerated.
+[`docs/user-guide.html`](docs/user-guide.html) is the read-cold version: the seven tasks, the happy
+path with one command per step, the archetypes, the file layout, the settings, and the rules.
 
 ## Tests
 
