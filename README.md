@@ -56,6 +56,7 @@ Exits non-zero while anything is unanswered.
 | `corporate-style` | Drafting in the company voice | prose |
 | `de-slop` | Before every gate | the machine fingerprints taken out |
 | `x-article` | When an approved draft ships as an X Article | the X-ready draft, its paste page and 5:2 cover, the blog mirror, and a 10 to 15 post series with a schedule |
+| `last-looks` | Right before anything ships or posts | de-slop and the voice pass, then every mechanical check (numbers, links, UTMs, images, limits, the video standard), one finding per line and a verdict per file |
 
 ## The gates
 
@@ -86,8 +87,7 @@ browser.
 ## Tests
 
 ```bash
-cd skills/advocacy-intake && python3 -m pytest -q     # 109
-cd skills/advocacy-cycle  && python3 -m pytest -q     #  71
+python3 -m pytest -q     # 312, every skill, from the repo root
 ```
 
 The interesting half is pure functions over data, so it tests without an Asana token and without a
