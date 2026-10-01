@@ -46,7 +46,7 @@ import drip  # noqa: E402  the drip file rules, owned by advocacy-cycle
 from cycle_core import _FRONTMATTER, billed_length, parse_frontmatter  # noqa: E402
 from utm import owned  # noqa: E402  x-article's domain rule
 
-VERSION = "0.3.0"
+VERSION = "0.4.1"
 
 BANNED = ("leverage", "delve", "nuanced", "robust", "seamlessly", "elevate",
           "streamline", "supercharge", "empower", "unlock", "comprehensive")
@@ -921,7 +921,7 @@ def check_video(repo, opts):
 # Files. Everything below touches the filesystem or the network.
 # --------------------------------------------------------------------------
 
-KINDS = ("prose", "social", "drip", "notes", "html", "url", "video")
+KINDS = ("prose", "social", "drip", "notes", "takes", "html", "url", "video")
 
 
 def kind_of(target):
@@ -936,6 +936,8 @@ def kind_of(target):
         return "video"
     if path.name == "notes.md":
         return "notes"
+    if path.name == "archetype-takes.md":
+        return "takes"
     if path.parent.name == "drips":
         return "drip"
     if path.name == "social.md":
@@ -999,7 +1001,7 @@ def check_file(path, kind, opts):
         results += check_frontmatter(text, opts.voice, need_status=(kind != "drip"))
     results += check_em_dashes(text)
     results += check_banned_words(text)
-    if kind in ("prose", "social"):
+    if kind in ("prose", "social", "takes"):
         notes = find_notes(path, opts.notes)
         results += check_numbers(text, _read(notes) if notes and notes.is_file() else None)
     if kind == "social":
@@ -1015,8 +1017,12 @@ def check_file(path, kind, opts):
         if opts.notes:
             ctx = ctx._replace(notes=_read(opts.notes))
         results += check_drip_text(text, ctx)
-    if kind != "notes":
+    # archetype-takes.md is a pickup brief and notes.md is the fact sheet. Neither
+    # is posted, so their links are not tagged and their posts are not measured;
+    # em dashes, banned words and numbers still apply.
+    if kind not in ("notes", "takes"):
         results += check_utms(text, opts)
+    if kind != "notes":
         results += check_images_md(text, path.parent, opts)
     if opts.net:
         results += check_urls(text, fetch)

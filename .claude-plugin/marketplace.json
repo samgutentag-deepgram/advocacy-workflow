@@ -10,7 +10,7 @@
       "name": "advocacy-workflow",
       "source": "./",
       "description": "Turn a finished project into a content campaign: a base post, six archetype takes, a social pool, drips and a video, tracked as seven flat Asana tasks ticked from the files.",
-      "version": "0.4.0"
+      "version": "0.4.1"
     }
   ]
 }

@@ -47,6 +47,7 @@ the real paths rather than copies.
 | `social.md`, drips | X posts within 280 with every URL billed at 23; LinkedIn 600 to 1,500 characters and at most three hashtags; six posts per platform in `social.md`. A drip also gets `drip.py check`'s own rules |
 | every URL | resolves (HEAD, then GET). `x.com`, `linkedin.com`, `api.deepgram.com` and localhost are skipped and checked by hand |
 | every owned link | carries `utm_source`, `utm_medium`, `utm_campaign` and `utm_content`, nothing more. The person is in `utm_content`, never `utm_source`. Nothing off the owned domains is tagged. Links inside code are not links |
+| `archetype-takes.md`, `notes.md` | skip the UTM and length checks. A pickup brief and the fact sheet are read in the repo, never posted. Em dashes, banned words and numbers still apply |
 | every image a file references | exists, is PNG, JPEG, GIF, WebP or SVG, and a raster is at least 1200 px wide (`--min-width`), read from the file header |
 | an HTML page or live URL | every `<img>` fetches with 200 and an image content type; `og:image` and `twitter:image` exist, are absolute URLs, and fetch |
 

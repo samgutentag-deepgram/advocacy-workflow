@@ -564,7 +564,22 @@ class TestFiles(unittest.TestCase):
         self.assertEqual(ll.kind_of("advocacy/content/drips/2026-10-01-x.md"), "drip")
         self.assertEqual(ll.kind_of("advocacy/content/social.md"), "social")
         self.assertEqual(ll.kind_of("advocacy/content/blog-base.md"), "prose")
+        self.assertEqual(ll.kind_of("advocacy/content/archetype-takes.md"), "takes")
         self.assertEqual(ll.kind_of("brag-output/brag.mp4"), "video")
+
+    def test_takes_and_notes_skip_the_utm_and_length_checks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._project(pathlib.Path(tmp))
+            takes = repo / "advocacy" / "content" / "archetype-takes.md"
+            takes.write_text(FM + "# Takes\n\n### X\n\n" + "lorem " * 60
+                             + "— 42 [docs](https://developers.deepgram.com/docs/x)\n")
+            found = ll.check_file(takes, ll.kind_of(takes), OPTS._replace(net=False))
+            self.assertEqual([f.message for f in found],
+                             ["em dash", "number 42 not in notes.md"])
+            notes = repo / "advocacy" / "notes.md"
+            notes.write_text(NOTES + "\nSource: https://developers.deepgram.com/docs/x\n")
+            found = ll.check_file(notes, ll.kind_of(notes), OPTS._replace(net=False))
+            self.assertEqual([f.message for f in found], [])
 
     def _project(self, root):
         repo = root / "demo-lab"
