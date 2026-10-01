@@ -1,6 +1,6 @@
 ---
 name: advocacy-cycle
-description: Produce the content for a campaign that advocacy-intake already promoted. Scaffolds advocacy/content/, extracts notes.md from the build ledger, writes the two blogs, derives five canonicals and twenty style variants through four review gates, files gates C and D in Asana, and renders base-layer videos. Use when the user says "start the cycle", "write the blog posts", "fan out the variants", "check the drafts", "the post is live", or runs /advocacy-cycle. Requires advocacy/advocacy.md, which advocacy-intake writes.
+description: Produce the content for a campaign that advocacy-intake already promoted. Scaffolds advocacy/content/, extracts notes.md from the build ledger, writes the two blogs, derives five canonicals and twenty style variants through four review gates, files gates C and D in Asana, renders base-layer videos, and schedules a six-post drip for every piece that ships. Use when the user says "start the cycle", "write the blog posts", "fan out the variants", "check the drafts", "drip the posts", "the post is live", or runs /advocacy-cycle. Requires advocacy/advocacy.md, which advocacy-intake writes.
 ---
 
 # Advocacy cycle
@@ -54,6 +54,8 @@ advocacy/
   content/<branch>/blog.md
   content/<branch>/<surface>/<surface>.md
   content/<branch>/<surface>/variants/<surface>-<style>.md
+  content/drips/<date>-<slug>.md   six dated posts for one shipped piece
+  content/published.log       one line per post that went live
   renders/                    gitignored
   assets/                     authored figures
   review/                     critique output, input to revision
@@ -145,17 +147,24 @@ Variants are staggered long tail reposts of the same material, filling gaps
 between cycles. They are not four competing angles for one slot, so they may
 share the canonical's rhythm and the edits should be light.
 
+The four styles are the fan-out axis for video, and for the gate C variants
+that feed it. Prose fans out on a different axis: the six developer
+archetypes (Curious dev, Explorer, Builder, Scaler, Champion, Partner dev)
+that the archetype takes, `social.md`, and the drips are written against. A
+style changes how a piece is told; an archetype changes who it is told to.
+A project uses both, and neither replaces the other.
+
 ## Verbs
 
 Parse the argument. No argument means status.
 
-### (no argument) — status
+### (no argument): status
 
 Report, briefly: which gate the campaign is on, the count at each status per
 gate, and the next unblocked piece. Name anything blocked and say what it is
 waiting on. Use `gate_status` and `blocked_reason`; do not eyeball the tree.
 
-### `init` — scaffold and file
+### `init`: scaffold and file
 
 1. Refuse if `advocacy/advocacy.md` is missing. Say that `/advocacy-intake`
    writes it and to run that first. This is a refusal, not a warning.
@@ -173,7 +182,7 @@ waiting on. Use `gate_status` and `blocked_reason`; do not eyeball the tree.
    under them. Gates A and B are already there; leave them alone.
 6. Add `advocacy/renders/` to `.gitignore` if it is not there.
 
-### `draft <surface>` — write a blog or a canonical
+### `draft <surface>`: write a blog or a canonical
 
 1. **Check the parent against the board.** Fetch the project's completed task
    titles, build the status map with `status_from_board()`, then let
@@ -187,7 +196,7 @@ waiting on. Use `gate_status` and `blocked_reason`; do not eyeball the tree.
    in Asana, and is never inferred** from the fact that a draft exists. Tell
    them which task to complete when they are happy with it.
 
-### `variants <surface>` — fan out to four styles
+### `variants <surface>`: fan out to four styles
 
 1. Refuse unless the board says the canonical's Gate B task is complete, or
    the file carries a `published:` URL.
@@ -195,7 +204,7 @@ waiting on. Use `gate_status` and `blocked_reason`; do not eyeball the tree.
 3. **A style changes framing and never a claim.** A wrong number is wrong in
    all four, is fixed in the canonical first, and is carried down.
 
-### `render` — gate D
+### `render`: gate D
 
 Only for `personal_video_script`, and only once its variants are approved.
 Build one `script-to-video` beat JSON per approved variant and render
@@ -208,7 +217,7 @@ horizontal. Output to `advocacy/renders/` beside its input JSON.
 - These are placeholders with a synthetic voice. They exist so the advocate can
   re-record against a structure, and are never the deliverable.
 
-### `check` — the five checks
+### `check`: the five checks
 
 Run all five and report actual output. Never report a check as passing without
 having run it.
@@ -226,7 +235,7 @@ When a number in `notes.md` changes, every file already carrying the old value
 has to be found and fixed. A corrected measurement once survived in fourteen
 files, `notes.md` among them.
 
-### `ship <surface>` — record the landing
+### `ship <surface>`: record the landing
 
 Set `published:` to the live URL. `status` follows from that on the next
 sync; do not hand-write it.
@@ -237,6 +246,41 @@ record of it. A repo copy has been the last pre-publication draft before, and
 differed from the published page in five blocks.
 
 Refuse to mark anything published while a check is failing.
+
+### `drip <piece-url> --type blog|video`: six posts for one shipped piece
+
+Run from the project repo once the piece is live. `scripts/drip.py scaffold`
+writes `advocacy/content/drips/<date>-<slug>.md`: six posts, one per
+developer archetype in a fixed order (Curious dev, Explorer, Builder, Scaler,
+Champion, Partner dev), each on one platform. Curious dev, Explorer, Builder
+and Champion default to X; Scaler and Partner dev default to LinkedIn. Edit
+`platform:` to override one. It refuses to overwrite a file that exists.
+
+1. **The dates are the script's.** Two a week, Tuesday and Thursday, 09:00
+   America/Los_Angeles, from the first Tuesday at least five days out, or
+   from the week `--start` names. It skips `launch_blackouts` in
+   `~/.claude/advocacy-workflow.yml` and any date `x-series.md` or another
+   drip already holds. Name the piece's two strongest archetypes with
+   `--lead` and they take the first two slots.
+2. **Every post arrives as a beat** carrying the archetype's job and every
+   hook already used in the project. Write from `notes.md`, through the
+   voice skill and `de-slop`, then `drip.py check`, then delete the beat.
+3. **No hook reuse.** The first six words may match nothing in `social.md`,
+   `x-series.md`, or another drip.
+4. X: 280 characters with every URL billed at 23, link in the first reply
+   unless the piece itself is on X. LinkedIn: 600 to 1,500 characters, at
+   most three hashtags, first line is the hook.
+5. `check` traces every number back to `notes.md` as a literal token,
+   ignoring anything under a Superseded heading, the same rule x-article
+   uses. One line per finding, exit 1.
+
+### `post <drip-file> <n> <permalink>`: record one post going live
+
+`scripts/drip.py post` writes `published: <permalink>` on post `n` and
+appends `YYYY-MM-DD <platform> <permalink> <file>#<n>` to
+`advocacy/content/published.log`. It refuses a post already published, one
+still unwritten, and any file failing `check`. The log lives here and not in
+`.hub/ledger.md` because the ledger is project-hub's.
 
 ## Rules
 
