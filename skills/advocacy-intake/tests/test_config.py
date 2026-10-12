@@ -46,8 +46,16 @@ class TestParseAndRender(unittest.TestCase):
 
 
 class TestMissing(unittest.TestCase):
-    def test_an_empty_config_needs_every_field(self):
-        self.assertEqual(len(c.missing({})), len(c.FIELDS))
+    def test_an_empty_config_needs_every_required_field(self):
+        self.assertEqual(len(c.missing({})), len(c.FIELDS) - len(c.OPTIONAL))
+
+    def test_the_home_section_is_optional_and_the_home_board_is_not(self):
+        still = [f.key for f in c.missing(c.with_defaults({}))]
+        self.assertIn("asana_home_project", still)
+        self.assertNotIn("asana_home_section", still)
+
+    def test_every_optional_key_is_a_real_field(self):
+        self.assertTrue(c.OPTIONAL <= {f.key for f in c.FIELDS})
 
     def test_defaults_answer_three_of_them(self):
         still = [f.key for f in c.missing(c.with_defaults({}))]

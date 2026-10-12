@@ -25,6 +25,13 @@ Field = namedtuple("Field", "key label how")
 FIELDS = (
     Field("asana_workspace", "Asana workspace gid",
           "Ask Claude to list your Asana workspaces. There is usually one."),
+    Field("asana_home_project", "Campaign home board gid",
+          "The shared board every campaign lives on as one parent task, "
+          "usually the team's advocacy pillar board. Ask Claude to search "
+          "your Asana projects by name and read back its gid."),
+    Field("asana_home_section", "Campaign home section gid",
+          "The section on that board new parent tasks land in. Optional: "
+          "leave it blank and they land wherever the board puts new tasks."),
     Field("lab_root", "Where lab repos live",
           "The directory holding private working repos. ~/LABS by "
           "convention. Every repo under it is named <thing>-lab."),
@@ -38,6 +45,10 @@ FIELDS = (
 )
 
 _BY_KEY = {f.key: f for f in FIELDS}
+
+# Asked, but a blank answer is a real answer: a board with no sections still
+# takes a parent task.
+OPTIONAL = frozenset({"asana_home_section"})
 
 DEFAULTS = {
     "lab_root": "~/LABS",
@@ -90,9 +101,11 @@ def missing(values):
 
     A field present but empty counts as missing: the interview writes the
     whole file at once, so an empty value means it was skipped, not that
-    somebody meant blank.
+    somebody meant blank. OPTIONAL fields are the exception.
     """
-    return [f for f in FIELDS if not (values or {}).get(f.key, "").strip()]
+    return [f for f in FIELDS
+            if f.key not in OPTIONAL
+            and not (values or {}).get(f.key, "").strip()]
 
 
 def with_defaults(values):

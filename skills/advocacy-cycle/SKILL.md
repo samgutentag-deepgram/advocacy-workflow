@@ -1,12 +1,14 @@
 ---
 name: advocacy-cycle
-description: Produce the content for a campaign that advocacy-intake already promoted. Extracts notes.md from the build ledger, writes the base blog post, the per-archetype takes and the social pool, records what ships, schedules the drips, renders base-layer video, and ticks the campaign's seven Asana tasks from the files. Use when the user says "start the cycle", "write the blog post", "write the takes", "draft the social posts", "check the draft", "the post is live", "drip the posts", "sync asana", or runs /advocacy-cycle. Requires advocacy/advocacy.md, which advocacy-intake writes.
+description: Produce the content for a campaign that advocacy-intake already promoted. Extracts notes.md from the build ledger, writes the base blog post, the per-archetype takes and the social pool, records what ships, schedules the drips, renders base-layer video, and keeps the campaign's Asana parent task current from the files: a stage subtask appears when that stage starts and is ticked when it ships. Use when the user says "start the cycle", "write the blog post", "write the takes", "draft the social posts", "check the draft", "the post is live", "drip the posts", "sync asana", or runs /advocacy-cycle. Requires advocacy/advocacy.md, which advocacy-intake writes.
 ---
 
 # Advocacy cycle
 
 One build becomes a base post, six archetype takes, twelve social posts, a
-drip per shipped piece, and a video. Seven flat Asana tasks record what went
+drip per shipped piece, and a video. One Asana parent task on the shared
+home board holds the campaign, and a stage subtask (seven possible titles)
+appears under it only once that stage starts, then records when it went
 live. The six developer archetypes are the fan-out for everything written
 for a reader: Curious dev, Explorer, Builder, Scaler, Champion, Partner dev,
 always in that order.
@@ -16,7 +18,7 @@ always in that order.
 - **project-hub** owns `.hub/` and the ledger. This skill reads the ledger
   and never writes to it.
 - **advocacy-intake** owns `advocacy/advocacy.md`, the frozen claim, day 0,
-  and creates the seven tasks. **It runs first.** If `advocacy/advocacy.md`
+  and the parent task. **It runs first.** If `advocacy/advocacy.md`
   is missing, stop and say so.
 - **last-looks** is the check. This skill does not carry its own.
 - **x-article** writes `content/x-article.md`, its paste page and
@@ -52,9 +54,31 @@ advocacy/
 
 The files are the record. `published:` in a file's frontmatter is where a
 piece went live, `hub.yml`'s `public_repo` is the flip, a drip with six
-written posts is the drip. `sync` reads those and ticks the matching task.
-Nothing flows the other way, and nothing in a file caches what the board
-said. A task is ticked by `sync` or by hand, and never unticked by a script.
+written posts is the drip. `sync` reads those and ticks the matching stage
+subtask. Nothing flows the other way, and nothing in a file caches what the
+board said. A subtask is ticked by `sync` or by hand, and never unticked or
+deleted by a script.
+
+**No placeholders.** A stage subtask is created the first time the files
+show its stage begun, never earlier:
+
+| Stage | Starts when |
+| --- | --- |
+| Public repo | a legal or approval doc exists, or `public_repo` is set |
+| Personal blog live | `blog-base.md` is drafting, written or published |
+| Corporate blog live | a company-blog URL proves it, or the user adds it by hand when the corporate edit begins |
+| X Article live | `x-article.md` is drafting, written or published |
+| Drip written and scheduled | any file exists under `content/drips/` |
+| Video live | `video-script.md` is drafting, written or published, or a video drip exists |
+| 90 day review | day 90 arrives, created with its due date |
+
+Anything complete has started, so a stage that shipped before its subtask
+existed gets one, ticked, in the same sync.
+
+**The campaign must point at a parent task.** `sync` prints `tracking`. If
+its `kind` is not `task`, show `migrate` and stop before any Asana write: an
+`advocacy.md` still pointing at an old per-repo project is migrated with
+advocacy-intake's "Migrating" steps, never synced in place.
 
 ## Beats are inline, in the file, not metadata
 
@@ -81,10 +105,11 @@ Parse the argument. No argument means status.
 ### (no argument): status
 
 Run `scripts/sync.py --repo <repo>` for the file states and the drips, and
-fetch the project's seven tasks from Asana. Print the seven with a tick or
-not, then the files with their status and open beats, then each drip's
-written and live counts. Name what the files prove complete that the board
-has not ticked yet, and say `sync` would tick it.
+fetch the parent task's subtasks from Asana. Print each existing stage with
+a tick or not, then the files with their status and open beats, then each
+drip's written and live counts. Name what the files show started that has
+no subtask yet, and what they prove complete that the board has not ticked,
+and say `sync` would create or tick it.
 
 ### `init`: notes and scaffolds
 
@@ -169,23 +194,31 @@ output is a placeholder with a synthetic voice to re-record against, never
 the deliverable. When the real video is public, `ship` its URL onto
 `video-script.md`.
 
-### `sync`: tick the seven from the files
+### `sync`: create started stages, tick finished ones
+
+Fetch the parent task's subtask titles into a temp file, one per line, then:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/advocacy-cycle/scripts/sync.py --repo <repo> --day0 <start_on>
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/advocacy-cycle/scripts/sync.py --repo <repo> \
+  --day0 <parent start_on> --existing-titles-file <temp file>
 ```
 
-It reads `.hub/hub.yml` (`public_repo`), every `published:` under
-`advocacy/content/`, `drips/*.md`, `published.log`, and the ledger's
-`90 day review` entry, and prints the tasks the files prove complete with
-the evidence. `--day0` is the project's `start_on`, needed only to judge
-whether the review entry is dated on or after the due date.
+It reads `advocacy.md`'s tracking line, `.hub/hub.yml` (`public_repo`), every
+`published:` under `advocacy/content/`, `drips/*.md`, `published.log`, and
+the ledger's `90 day review` entry. It prints `started` (stages begun),
+`complete` (stages the files prove done) and `create` (started stages with
+no subtask yet), each with evidence. `--day0` is the parent task's
+`start_on`, needed to date and judge the 90 day review.
 
-Fetch the project's tasks, complete every task named under `complete` that
-is still open, and **never un-complete anything.** Print what changed, one
-line per task with its evidence, and print `unmatched` as is: a live URL on
-a host that is neither `blog_base_url` nor in `utm_domains` is reported,
-not guessed, and the user ticks that one by hand.
+If `tracking.migrate` is not null, stop there. Otherwise create every row
+under `create` as a subtask of the parent with exactly that title, its
+`note` as the description and `due_on` where set, then complete every
+subtask named under `complete` that is still open. **Never un-complete or
+delete anything, and never create a stage `sync` did not name.** Print what
+changed, one line per subtask with its evidence, and print `unmatched` as
+is: a live URL on a host that is neither `blog_base_url` nor in
+`utm_domains` is reported, not guessed, and the user ticks that one by
+hand.
 
 ## Rules
 

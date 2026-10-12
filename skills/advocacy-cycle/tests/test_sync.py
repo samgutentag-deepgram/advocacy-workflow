@@ -1,5 +1,6 @@
 # tests/test_sync.py
-"""sync.py's file half: which of the seven the files prove complete.
+"""sync.py's file half: which stages the files show started and which they
+prove complete.
 
 The Asana half (ticking) is the model's and is not tested here. These tests
 build a fake repo on disk, because the point of sync is reading real files
@@ -269,6 +270,87 @@ class TestFileStates(unittest.TestCase):
         self.assertEqual(row["piece_type"], "blog")
 
 
+class TestStarted(unittest.TestCase):
+    """A stage subtask exists only once its stage has started. Nothing here
+    may conjure a placeholder for work nobody has begun."""
+
+    def setUp(self):
+        self.repo = Repo()
+
+    def tearDown(self):
+        self.repo.close()
+
+    def started(self, day0=None, today=None):
+        return {e.task: e.because
+                for e in sync.started_from(self.repo.root, CFG, day0, today)}
+
+    def test_a_bare_repo_has_started_nothing(self):
+        self.assertEqual(self.started(dt.date(2026, 9, 1), dt.date(2026, 9, 2)), {})
+
+    def test_a_scaffolded_but_empty_blog_has_not_started(self):
+        self.repo.write("advocacy/content/blog-base.md", fm(surface="blog-base", published=""))
+        self.assertEqual(self.started(), {})
+
+    def test_a_blog_being_drafted_starts_the_personal_blog_only(self):
+        self.repo.write("advocacy/content/blog-base.md",
+                        fm(surface="blog-base", published="") + "<!-- HOOK .... 20 w\n-->\n")
+        self.assertEqual(list(self.started()), ["Personal blog live"])
+
+    def test_the_corporate_blog_starts_only_when_a_company_url_proves_it(self):
+        self.repo.write("advocacy/content/blog-base.md",
+                        fm(surface="blog-base", published=CORPORATE))
+        self.assertEqual(list(self.started()), ["Personal blog live", "Corporate blog live"])
+
+    def test_a_legal_doc_starts_the_public_repo(self):
+        self.repo.write("docs/legal.md", "# Can this go public\n")
+        self.assertIn("Public repo", self.started())
+
+    def test_a_drip_file_starts_the_drip_even_half_written(self):
+        self.repo.drip("2026-10-01-thing.md", PERSONAL, "blog", written=2)
+        self.assertIn("Drip written and scheduled", self.started())
+
+    def test_an_x_article_draft_and_a_video_script_start_their_stages(self):
+        self.repo.write("advocacy/content/x-article.md", fm(published="") + "Body.\n")
+        self.repo.write("advocacy/content/video-script.md", fm(published="") + "Script.\n")
+        self.assertEqual(list(self.started()), ["X Article live", "Video live"])
+
+    def test_the_review_starts_on_day_90_and_not_before(self):
+        day0 = dt.date(2026, 9, 1)
+        self.assertNotIn("90 day review", self.started(day0, dt.date(2026, 11, 29)))
+        self.assertIn("90 day review", self.started(day0, dt.date(2026, 11, 30)))
+
+    def test_anything_complete_has_started(self):
+        self.repo.hub(public_repo="https://github.com/example/thing")
+        self.assertIn("Public repo", self.started())
+
+
+class TestToCreate(unittest.TestCase):
+    def setUp(self):
+        self.repo = Repo()
+
+    def tearDown(self):
+        self.repo.close()
+
+    def test_only_started_stages_without_a_subtask_are_created(self):
+        self.repo.hub(public_repo="https://github.com/example/thing")
+        self.repo.drip("2026-10-01-thing.md", PERSONAL, "blog", written=1)
+        started = sync.started_from(self.repo.root, CFG)
+        rows = sync.to_create(started, ["Public repo", "Personal blog live",
+                                        "Somebody's own subtask"])
+        self.assertEqual([r["title"] for r in rows], ["Drip written and scheduled"])
+        self.assertTrue(rows[0]["note"])
+
+    def test_the_review_is_created_with_its_due_date(self):
+        day0 = dt.date(2026, 9, 1)
+        started = sync.started_from(self.repo.root, CFG, day0, dt.date(2026, 12, 1))
+        rows = sync.to_create(started, [], day0)
+        self.assertEqual(rows, [{"title": "90 day review",
+                                 "note": rows[0]["note"], "due_on": "2026-11-30"}])
+
+    def test_nothing_started_means_nothing_created(self):
+        self.assertEqual(sync.to_create(sync.started_from(self.repo.root, CFG), []), [])
+
+
 class TestCli(unittest.TestCase):
     def setUp(self):
         self.repo = Repo()
@@ -303,6 +385,37 @@ class TestCli(unittest.TestCase):
         self.repo.write(".hub/ledger.md", "## 2026-12-01\n\n### [review] 90 day review\n")
         data = json.loads(self.run_sync("--day0", "2026-09-01").stdout)
         self.assertEqual([e["task"] for e in data["complete"]], ["90 day review"])
+
+    def test_existing_titles_add_the_subtasks_to_create(self):
+        self.repo.hub(public_repo="https://github.com/example/thing")
+        titles = self.repo.root / "titles.txt"
+        titles.write_text("Public repo\n")
+        self.repo.write("advocacy/content/x-article.md", fm(published="") + "Body.\n")
+        data = json.loads(self.run_sync("--existing-titles-file", str(titles)).stdout)
+        self.assertEqual([r["title"] for r in data["create"]], ["X Article live"])
+        self.assertEqual([e["task"] for e in data["started"]],
+                         ["Public repo", "X Article live"])
+
+    def test_an_old_per_repo_project_gets_the_migration_message(self):
+        self.repo.write("advocacy/advocacy.md",
+                        "## Where the work is tracked\n\n"
+                        "https://app.asana.com/1/411/project/1219052330259865\n\nAsana holds x\n")
+        result = self.run_sync()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = json.loads(result.stdout)
+        self.assertEqual(data["tracking"]["kind"], "project")
+        self.assertIn("--set-asana-url", data["tracking"]["migrate"])
+        self.assertIn("per-repo Asana project", result.stderr)
+
+    def test_a_parent_task_needs_no_migration(self):
+        self.repo.write("advocacy/advocacy.md",
+                        "## Where the work is tracked\n\n"
+                        "https://app.asana.com/1/411/task/1219426228267446\n\nAsana holds x\n")
+        result = self.run_sync()
+        data = json.loads(result.stdout)
+        self.assertEqual((data["tracking"]["kind"], data["tracking"]["migrate"]),
+                         ("task", None))
+        self.assertEqual(result.stderr, "")
 
     def test_a_repo_without_advocacy_is_refused(self):
         shutil.rmtree(self.repo.root / "advocacy")

@@ -4,10 +4,13 @@ Every function here takes data and returns data. No network, no environment,
 no writes. That is what makes the interesting half testable without an Asana
 token and without a real repository.
 
-The model is deliberately small. Every promoted campaign gets one Asana
-project with the same seven flat tasks, no sections, no subtasks. Ticking a
-task is both the approval and the record. Status comes from files, and Asana
-is updated from files in one direction (see advocacy-cycle's sync.py).
+The model is deliberately small. Every promoted campaign is ONE parent
+task on a shared home board (config: asana_home_project), never a project of
+its own. Under it go at most seven stage subtasks with fixed titles, and each
+one is created only when its stage actually starts, so the board never holds
+a placeholder for work nobody has begun. Ticking a subtask is both the
+approval and the record. Status comes from files, and Asana is updated from
+files in one direction (see advocacy-cycle's sync.py).
 """
 from __future__ import annotations
 
@@ -118,8 +121,8 @@ def read_signals(repo_path):
     )
 
 
-# One task on the board. `note` is the description written onto the Asana
-# task at creation: one line saying when to tick it, except the review,
+# One stage subtask under the campaign's parent task. `note` is the
+# description written onto it at creation: one line saying when to tick it, except the review,
 # which carries its five steps. `due_day` is days after day 0, or None: only
 # the review carries a date, because everything else is done when it is done
 # and a made-up deadline is worse than none.
@@ -127,9 +130,10 @@ Task = namedtuple("Task", "title note due_day")
 
 REVIEW_DAY = 90
 
-# THE SEVEN. Same titles, same order, every campaign. Titles are the
-# reconcile key: reconcile() matches on title text, so a title changed here
-# without being changed in Asana makes every re-run create a duplicate.
+# THE SEVEN STAGES. Same titles, same order, every campaign; a campaign only
+# ever holds the ones that have started. Titles are the reconcile key:
+# reconcile() matches on title text, so a title changed here without being
+# changed in Asana makes every re-run create a duplicate.
 SEVEN_TASKS = (
     Task("Public repo",
          "Complete when the public twin exists with a LICENSE and "
@@ -203,8 +207,90 @@ def due_on(task, day0):
 
 
 def campaign_dates(day0):
-    """(start_on, due_on) for the project itself: day 0 to day 90."""
+    """(start_on, due_on) for the campaign's parent task: day 0 to day 90."""
     return day0, day0 + dt.timedelta(days=REVIEW_DAY)
+
+
+# --------------------------------------------------------------------------
+# Where a campaign is tracked: the URL on advocacy.md's tracking line.
+# --------------------------------------------------------------------------
+
+Tracking = namedtuple("Tracking", "kind gid url")
+
+ADVOCACY_MD = pathlib.PurePosixPath("advocacy", "advocacy.md")
+
+# The value between the tracking header and the paragraph after it. Same
+# shape write_advocacy.py renders, read here so sync does not need it.
+_TRACKING_LINE = re.compile(r"## Where the work is tracked\n\n(.*?)\n\n", re.DOTALL)
+
+# Asana URL shapes, newest first. /1/<ws>/.../task/<gid> and /0/<project>/<task>
+# name a task; /1/<ws>/project/<gid> and /0/<project>[/list|/board] name a
+# project. A /0/ URL's second segment is a task only when it is all digits.
+_TASK_URL = re.compile(r"/task/(\d+)")
+_OLD_TASK_URL = re.compile(r"app\.asana\.com/0/\d+/(\d+)(?:/f)?/?(?:[?#].*)?$")
+_PROJECT_URL = re.compile(r"(?:/project/|app\.asana\.com/0/)(\d+)")
+
+
+def tracking_from_url(url):
+    """Classify a tracking URL as a parent task, an old per-repo project, or
+    nothing usable. Pure."""
+    value = (url or "").strip()
+    if not value.startswith("http"):
+        return Tracking("missing", None, value or None)
+    for pattern in (_TASK_URL, _OLD_TASK_URL):
+        match = pattern.search(value)
+        if match:
+            return Tracking("task", match.group(1), value)
+    match = _PROJECT_URL.search(value)
+    if match:
+        return Tracking("project", match.group(1), value)
+    return Tracking("missing", None, value)
+
+
+def tracking_url_in(advocacy_text):
+    """The tracking line of an advocacy.md, or None if it has no section."""
+    match = _TRACKING_LINE.search(advocacy_text)
+    return match.group(1).strip() if match else None
+
+
+def read_tracking(repo_path):
+    """Tracking for a repo, read from advocacy/advocacy.md. Reads only."""
+    path = pathlib.Path(repo_path) / ADVOCACY_MD
+    if not path.is_file():
+        return Tracking("missing", None, None)
+    return tracking_from_url(tracking_url_in(path.read_text(errors="replace")))
+
+
+def migration_message(tracking):
+    """What to tell the user when a campaign cannot be synced yet, or None
+    when its tracking already points at a parent task."""
+    if tracking.kind == "task":
+        return None
+    if tracking.kind == "project":
+        return (
+            "advocacy.md still points at a per-repo Asana project (%s). "
+            "Campaigns now live as one parent task on the home board. "
+            "Migrate: find or create the campaign's parent task on "
+            "asana_home_project, move any started work under it as subtasks "
+            "with the stage titles (close the placeholders instead of moving "
+            "them), archive the old project, then run "
+            "write_advocacy.py --repo <repo> --set-asana-url <parent task URL>."
+            % tracking.url)
+    return ("advocacy.md has no Asana parent task URL yet. Run intake, or "
+            "write_advocacy.py --repo <repo> --set-asana-url <parent task URL>.")
+
+
+def find_parent(slug, existing_titles):
+    """The home board task that already is this campaign's parent, or None.
+
+    A parent is titled with the campaign slug, alone or followed by a colon
+    and a description ("jev: Flux eager end-of-turn demo"). Anything else on
+    a shared board belongs to somebody else.
+    """
+    for title in existing_titles:
+        if title == slug or title.startswith(slug + ":"):
+            return title
+    return None
 
 
 Plan = namedtuple("Plan", "create keep untouched")
@@ -248,6 +334,12 @@ if __name__ == "__main__":
              "carries its due_on (null on all but the review).",
     )
     mode.add_argument(
+        "--tracking", metavar="REPO",
+        help="Print where advocacy/advocacy.md says the campaign is tracked: "
+             "kind (task, project, missing), gid, url, and migrate, the "
+             "message to show when it is not a parent task yet.",
+    )
+    mode.add_argument(
         "--reconcile", metavar="REPO",
         help="Print reconcile(...) as one JSON object with create/keep/"
              "untouched. Requires --existing-titles-file.",
@@ -255,7 +347,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--day0", metavar="YYYY-MM-DD",
         help="Day 0. Adds due_on to each task and start_on/due_on for the "
-             "project. Valid with --tasks or --reconcile.",
+             "parent task. Valid with --tasks or --reconcile.",
     )
     parser.add_argument(
         "--existing-titles-file", dest="existing_titles_file", metavar="FILE",
@@ -275,7 +367,8 @@ if __name__ == "__main__":
         parser.error("--existing-titles-file is only valid together with --reconcile")
     if args.reconcile is not None and args.existing_titles_file is None:
         parser.error("--reconcile requires --existing-titles-file")
-    if args.day0 is not None and args.signals is not None:
+    if args.day0 is not None and (args.signals is not None
+                                  or args.tracking is not None):
         parser.error("--day0 is only valid together with --tasks or --reconcile")
 
     try:
@@ -283,6 +376,13 @@ if __name__ == "__main__":
         if args.signals is not None:
             signals = read_signals(args.signals)
             print(json.dumps(signals._asdict()))
+        elif args.tracking is not None:
+            if not pathlib.Path(args.tracking).is_dir():
+                raise FileNotFoundError("no such repository: %s" % args.tracking)
+            tracking = read_tracking(args.tracking)
+            row = dict(tracking._asdict())
+            row["migrate"] = migration_message(tracking)
+            print(json.dumps(row))
         elif args.tasks is not None:
             tasks = build_tasks(read_signals(args.tasks))
             print(json.dumps([_task_json(t, day0) for t in tasks]))
@@ -307,7 +407,7 @@ if __name__ == "__main__":
             }
             if day0:
                 start, due = campaign_dates(day0)
-                out["project"] = {"start_on": start.isoformat(),
+                out["parent"] = {"start_on": start.isoformat(),
                                   "due_on": due.isoformat()}
             print(json.dumps(out))
     except (FileNotFoundError, KeyError, ValueError) as exc:

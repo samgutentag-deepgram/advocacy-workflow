@@ -1,12 +1,17 @@
 ---
 name: advocacy-intake
-description: Promote a repository you already have into an advocacy campaign. Reads the repo cold, writes advocacy/advocacy.md with one falsifiable claim and the reader, sets day 0 on the repo's existing Asana project, and creates the same seven flat tasks every campaign gets. Use when the user says "make a campaign out of this", "this should be content", "run intake on this repo", or runs /advocacy-intake. Does NOT create repositories, does NOT create Asana projects, and does NOT write build ledgers; project-hub owns those.
+description: Promote a repository you already have into an advocacy campaign. Reads the repo cold, writes advocacy/advocacy.md with one falsifiable claim and the reader, and finds or creates the campaign's one parent task on the shared home board, dated day 0 to day 90. Stage subtasks come later, one per stage as it starts. Use when the user says "make a campaign out of this", "this should be content", "run intake on this repo", or runs /advocacy-intake. Does NOT create repositories, does NOT create Asana projects, does NOT create placeholder tasks, and does NOT write build ledgers.
 ---
 
 # Advocacy intake
 
-Every promoted campaign has one Asana project with exactly seven flat tasks,
-no sections, no subtasks, created in this order with these exact titles:
+Every promoted campaign is **one parent task on a shared home board**
+(`asana_home_project` in the config, usually the team's advocacy pillar
+board), never an Asana project of its own. Boards hold work, not people:
+one board per campaign is how a team ends up with forty boards nobody opens.
+
+Under the parent go at most seven stage subtasks, with these exact titles,
+in this order:
 
 1. Public repo
 2. Personal blog live
@@ -16,11 +21,15 @@ no sections, no subtasks, created in this order with these exact titles:
 6. Video live
 7. 90 day review (the only task with a due date: day 0 plus 90)
 
-Ticking a task is both the approval and the record. Explorations have zero
-tasks. Status comes from files; Asana is updated from files, one direction,
-and never by hand except ticking. The table is `SEVEN_TASKS` in
-`scripts/intake_core.py`, and `advocacy-cycle` imports it rather than
-carrying its own.
+**A stage subtask is created only when its stage starts.** Intake creates
+none. `advocacy-cycle`'s `sync` creates each one the first time the files
+show that stage begun (a blog in draft, a drip file, a legal doc, day 90
+arriving), so the board never holds a placeholder for work nobody has
+started. Ticking a subtask is both the approval and the record. Explorations
+have no parent task at all. Status comes from files; Asana is updated from
+files, one direction, and never by hand except ticking. The table is
+`SEVEN_TASKS` in `scripts/intake_core.py`, and `advocacy-cycle` imports it
+rather than carrying its own.
 
 ## First run: set up this machine
 
@@ -30,21 +39,23 @@ Before any verb, run `config.py --missing` (the scripts live at
 anything is missing, interview before doing what was asked, then continue:
 one question at a time, in `FIELDS` order, saying each field's `how`. The
 one Asana fact is the workspace gid; read it back with the Asana tools and
-write the file with `config.render()`. `lab_root`, `voice_personal` and
-`voice_corporate` default and are confirmed, not asked.
+write the file with `config.render()`. The Asana facts are the workspace
+gid and the home board (`asana_home_project`, plus an optional
+`asana_home_section`); search the projects by name and read the gids back.
+`lab_root`, `voice_personal` and `voice_corporate` default and are
+confirmed, not asked.
 
 Also check `project-hub` is installed. If `/project-hub` is not available,
 say so and point at `/plugin install project-workflow@project-workflow`.
 
 ## Related skills
 
-- **project-hub** owns `.hub/`, the ledger, and the Asana project itself.
-  `project-hub init` creates the project and writes its gid and URL into
-  `.hub/hub.yml` under `asana:`. This skill reads that and never creates a
-  project of its own.
+- **project-hub** owns `.hub/` and the ledger. If an older `project-hub init`
+  left a per-repo Asana project in `.hub/hub.yml`, intake does not track the
+  campaign there; see "Migrating" below.
 - **advocacy-cycle** produces the content and owns `scripts/sync.py`, which
-  ticks the seven from the files. Step 5 runs it, so the pre-completion
-  rules exist in one place.
+  creates started stages and ticks finished ones from the files. Step 5 runs
+  it, so those rules exist in one place.
 
 ## Invocation
 
@@ -61,7 +72,7 @@ no path was given, refuse and say so. Never guess.
 ```
 repo:     <absolute path>
 branch:   <branch>, <clean|N changes>
-will:     promote 1 existing Asana project, write 1 advocacy/ directory
+will:     find or create 1 parent task on the home board, write 1 advocacy/ directory
 nothing happens until you confirm.
 ```
 
@@ -95,19 +106,42 @@ The claim must be falsifiable. If you cannot name two ways it could turn out
 false, it is a description, not a claim, and intake stops here. Name the
 reader in one sentence.
 
-Read the Asana URL from `.hub/hub.yml`'s `asana.url`. If `hub.yml` has no
-`asana` key, stop: this repo has no Asana project yet, `/project-hub init`
-creates one, run that first.
+Write it before the parent task exists; step 3 fills the URL in. Repo
+first, Asana second, so the decision is recorded even if Asana is down.
 
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/skills/advocacy-intake/scripts/write_advocacy.py --repo <repo> \
   --project <slug> --claim "<the frozen, falsifiable claim>" \
-  --reader "<who this is for>" --asana-url <the URL from hub.yml>
+  --reader "<who this is for>"
 ```
 
-### 3. Set day 0
+### 3. Find or create the parent task
 
-Read the project's `start_on` with the Asana tools. **If it has a value,
+Check where the file says the campaign is tracked:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/advocacy-intake/scripts/intake_core.py --tracking <repo>
+```
+
+- `kind: task`: the parent exists. Use that gid and go to step 4.
+- `kind: project`: an old per-repo campaign. Show `migrate` and stop; see
+  "Migrating" below.
+- `kind: missing`: list the home board's top-level task titles and match
+  them with `find_parent(slug, titles)`: a title that is the slug, or the
+  slug followed by a colon. If one matches, that is the parent. If none
+  does, create one task on `asana_home_project` (in `asana_home_section`
+  when set), assigned to the user, titled `<slug>: <one line saying what
+  was built>`, with the claim and the lab repo path as its description and
+  **no subtasks**. Then record it:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/advocacy-intake/scripts/write_advocacy.py --repo <repo> \
+  --set-asana-url <the parent task URL>
+```
+
+### 4. Set day 0
+
+Read the parent task's `start_on` with the Asana tools. **If it has a value,
 that is day 0, it is frozen, and you keep it.** Say what it is and move on.
 Moving day 0 re-dates the review underneath whoever is watching the board;
 if it genuinely must move, that is a deliberate edit in Asana, not a re-run.
@@ -119,61 +153,60 @@ a demo built and shipped weeks ago, a README naming a launch slot, a ledger
 whose last entry is months old. Otherwise do not force a question the
 evidence already answered.
 
-Then set the project's `start_on` (day 0) and `due_on` (day 0 plus 90) in
-one `update_project` call. Asana rejects a `start_on` later than the current
+Then set the parent task's `start_on` (day 0) and `due_on` (day 0 plus 90)
+in one `update_tasks` call. Asana rejects a `start_on` later than the current
 `due_on`, so sending both together avoids the ordering trap.
-
-### 4. Create the seven tasks
-
-Fetch the project's existing task titles, write them one per line to a temp
-file, and reconcile:
-
-```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/advocacy-intake/scripts/intake_core.py --reconcile <repo> \
-  --existing-titles-file <temp file> --day0 <YYYY-MM-DD>
-```
-
-Create every task under `create`, in order, with exactly the `title` the
-script returned, `note` as the description, and `due_on` where it is not
-null (only the review). No sections, no subtasks, no dependencies. Leave
-`keep` alone. Leave `untouched` alone completely: hub init's tasks and
-anything the user typed are the same kind of thing as these, and
-`reconcile` has no delete list on purpose.
-
-Re-running is safe and creates only what is missing, matched on title. A
-task renamed in Asana does not stick: the original title is recreated.
-
-If `decision_task` is not null, mark that task (`Decide: promote or drop`)
-complete. Promoting is that decision. If it is null, say nothing.
 
 ### 5. Sync from files
 
+Fetch the parent's subtask titles, write them one per line to a temp file,
+then:
+
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/advocacy-cycle/scripts/sync.py --repo <repo> --day0 <YYYY-MM-DD>
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/advocacy-cycle/scripts/sync.py --repo <repo> \
+  --day0 <YYYY-MM-DD> --existing-titles-file <temp file>
 ```
 
-Complete every task named under `complete` that is still open: `Public
-repo` when `hub.yml` carries `public_repo`, `Personal blog live` or
-`Corporate blog live` when `advocacy/content/blog-base.md` already has a
-`published:` URL, and so on. Never un-complete anything. Report `unmatched`
-rather than guessing which blog a URL belongs to.
+Create every row under `create` as a subtask of the parent, in order, with
+exactly that `title`, `note` as the description, and `due_on` where it is
+not null. These are only stages the files show already begun; on a repo
+where nothing has started, `create` is empty and that is correct. Then
+complete every subtask named under `complete` that is still open. Never
+un-complete or delete anything, and leave subtasks this skill did not name
+alone. Report `unmatched` rather than guessing which blog a URL belongs to.
 
 ### 6. Report
 
-Say what was promoted, which of the seven were created versus already
-there, which were pre-completed and from what evidence, what day 0 is and
-how it was chosen, and the project's `start_on` and `due_on`. **Then tell
-the user to add the project to the `Sam :: Advocacy` portfolio by hand.** No
-MCP tool does it.
+Say what was promoted, whether the parent task was found or created and its
+URL, which stage subtasks were created and from what evidence, which were
+ticked, and what day 0 is and how it was chosen.
+
+## Migrating a campaign from a per-repo project
+
+`--tracking` and `sync` both say so when `advocacy.md` still points at an
+Asana project. Nothing syncs until it is migrated, because ticking tasks on
+a board the team no longer reads is a record nobody will find:
+
+1. Find or create the parent task on the home board, as in step 3.
+2. Move only the old tasks that have real work in them under the parent as
+   subtasks with the stage titles. Close the placeholders instead.
+3. Archive the old project. Archive, not delete: it is the record of what
+   happened.
+4. `write_advocacy.py --repo <repo> --set-asana-url <parent task URL>`, then
+   run step 5.
 
 ## Rules
 
 - **Never write to `.hub/`.** That is project-hub's.
 - **Never remove or flag a task you did not create.**
-- **Never create an eighth task.** A new kind of work is a tick on one of
+- **Never create an eighth stage.** A new kind of work is a tick on one of
   the seven or it is not tracked here.
+- **Never create a stage before it starts.** No placeholders, no dates on
+  work nobody has begun.
+- **Never create an Asana project.** A campaign is one task on the home
+  board.
 - **The claim is frozen** once `advocacy.md` is written. **Day 0 is frozen**
-  once `start_on` is set.
-- **Dates are set at promotion, never at exploration.** An undated project
-  is an exploration and a dated one is a campaign. That is the whole signal.
+  once the parent's `start_on` is set.
+- **Dates are set at promotion, never at exploration.** An exploration has
+  no parent task; a dated parent is a campaign. That is the whole signal.
 - No em dashes. American English. Prose follows the configured voice skill.

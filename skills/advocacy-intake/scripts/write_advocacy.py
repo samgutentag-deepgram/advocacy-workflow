@@ -21,17 +21,18 @@ unpublished drafts, and it is one directory so that removing it is one command.
 
 {asana_url}
 
-Asana holds the seven tasks and their ticks. This file holds the claim, and the
-claim is frozen: it does not change again even if the work does. If the claim
-turns out to be wrong, that is a finding worth writing up, not an edit to make
-here.
+Asana holds the campaign's parent task, its stage subtasks and their ticks.
+This file holds the claim, and the claim is frozen: it does not change again
+even if the work does. If the claim turns out to be wrong, that is a finding
+worth writing up, not an edit to make here.
 """
 
 # Written when advocacy.md is created before the Asana URL is known. Repo
 # first, Asana second: this file records what was decided even if the Asana
-# call never happens, and intake fills this line in once the project is real.
+# call never happens, and intake fills this line in once the parent task is
+# real.
 _TRACKING_PENDING = (
-    "Pending. The Asana project URL is not known yet. Intake fills this in "
+    "Pending. The Asana parent task URL is not known yet. Intake fills this in "
     "with `write_advocacy.py --set-asana-url`."
 )
 
@@ -131,7 +132,7 @@ if __name__ == "__main__":
     parser.add_argument("--reader", help="Who this is for. Create mode only.")
     parser.add_argument(
         "--asana-url", dest="asana_url",
-        help="URL of the Asana project, read from hub.yml. Create mode only; "
+        help="URL of the campaign's parent task on the home board. Create mode only; "
              "optional there.",
     )
     parser.add_argument(

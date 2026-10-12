@@ -51,9 +51,9 @@ class TestTheSeven(unittest.TestCase):
         self.assertIn(".hub/ledger.md", note)
         self.assertIn("published.log", note)
 
-    def test_no_task_is_a_subtask_or_in_a_section(self):
-        """Flat on purpose. The old board had sections and subtasks and
-        nobody opened it."""
+    def test_a_stage_is_a_title_a_note_and_a_due_day_and_nothing_else(self):
+        """One level under the parent task, never deeper. The old board had
+        sections and nested subtasks and nobody opened it."""
         for task in SEVEN_TASKS:
             self.assertEqual(set(task._fields), {"title", "note", "due_day"})
 
@@ -93,7 +93,7 @@ class TestDates(unittest.TestCase):
             if task.title != REVIEW_TITLE:
                 self.assertIsNone(due_on(task, DAY0), task.title)
 
-    def test_the_project_runs_day_0_to_day_90(self):
+    def test_the_parent_task_runs_day_0_to_day_90(self):
         start, due = campaign_dates(DAY0)
         self.assertEqual(start, DAY0)
         self.assertEqual(due, dt.date(2026, 11, 30))

@@ -88,9 +88,9 @@ class TestCli(unittest.TestCase):
         self.assertEqual(data["untouched"],
                          [DECISION_TASK, "Capture the first time it works"])
 
-    def test_reconcile_with_day0_dates_the_project_and_the_review(self):
+    def test_reconcile_with_day0_dates_the_parent_and_the_review(self):
         data = self._reconcile([], "--day0", "2026-09-01")
-        self.assertEqual(data["project"],
+        self.assertEqual(data["parent"],
                          {"start_on": "2026-09-01", "due_on": "2026-11-30"})
         review = [t for t in data["create"] if t["title"] == "90 day review"][0]
         self.assertEqual(review["due_on"], "2026-11-30")

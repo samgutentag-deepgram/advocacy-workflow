@@ -1,13 +1,17 @@
-"""What the files say is done, as titles of the seven tasks.
+"""What the files say has started and what they say is done, as stage titles.
 
+A campaign is one parent task on the home board. Its stage subtasks are
+created only when a stage starts, so the board never carries a placeholder.
 Status comes from files. Asana is updated from files, in one direction, and
 never by hand except ticking. This script is the file half of that: it reads
-the repo and prints which of the seven tasks the files prove complete, with
-the evidence. The Asana half (fetch the project's tasks, tick the ones named
-here that are still open, never untick anything) is the model's, through the
-Asana MCP tools, because no script here holds a token.
+the repo and prints which stages the files show started (create the subtask)
+and which they prove complete (tick it), with the evidence. The Asana half
+(fetch the parent's subtasks, create the started ones that are missing, tick
+the complete ones still open, never untick or delete anything) is the
+model's, through the Asana MCP tools, because no script here holds a token.
 
-    sync.py --repo <path> [--day0 YYYY-MM-DD] [--config <yml>]
+    sync.py --repo <path> [--day0 YYYY-MM-DD] [--today YYYY-MM-DD]
+            [--existing-titles-file <file>] [--config <yml>]
 
 Stdlib only. Reads hub.yml through intake_core, frontmatter through
 cycle_core, and drips through drip.py, so none of those formats exist twice.
@@ -30,7 +34,8 @@ for _path in (HERE, _INTAKE):
 
 import config as machine_config  # noqa: E402  advocacy-intake's yml reader
 from intake_core import (  # noqa: E402
-    REVIEW_TITLE, SEVEN_TASKS, TITLES, campaign_dates, read_public_repo,
+    REVIEW_TITLE, SEVEN_TASKS, TITLES, campaign_dates, due_on, migration_message,
+    read_public_repo, read_signals, read_tracking, reconcile, task_by_title,
 )
 from cycle_core import (  # noqa: E402
     COMPANION, CONTENT_FILES, DRIPS_DIR, NOTES, PUBLISHED_LOG, VIDEO_SCRIPT,
@@ -216,13 +221,75 @@ def evidence_from(repo, config_values, day0=None):
     return ordered(found), unmatched
 
 
+# What counts as a stage having started. Completion always counts too, so a
+# stage finished before anyone made its subtask still gets one, ticked.
+# Corporate blog has no start signal of its own: the corporate post is an
+# edit of the same blog-base.md the personal post comes from, so starting
+# one says nothing about whether the other will happen. It gets its subtask
+# when a company-blog URL proves it, or by hand the day that edit begins.
+_STARTED_STATES = {"drafting", "written", "published"}
+
+
+def started_from(repo, config_values, day0=None, today=None):
+    """Evidence, in stage order, for every stage the files show has begun."""
+    repo = pathlib.Path(repo)
+    advocacy = repo / "advocacy"
+    complete, _ = evidence_from(repo, config_values, day0)
+    found = list(complete)
+
+    legal = read_signals(repo).legal_doc
+    if legal:
+        found.append(Evidence(PUBLIC_REPO, "%s exists: the publish check has begun" % legal))
+
+    blog_state = _status(advocacy / CONTENT_FILES[0].path)
+    if blog_state in _STARTED_STATES:
+        found.append(Evidence(PERSONAL_BLOG, "%s is %s" % (CONTENT_FILES[0].path, blog_state)))
+
+    article_state = _status(advocacy / X_ARTICLE)
+    if article_state in _STARTED_STATES:
+        found.append(Evidence(X_ARTICLE_LIVE, "%s is %s" % (X_ARTICLE, article_state)))
+
+    drips = drip_states(repo)
+    if drips:
+        found.append(Evidence(DRIP, "%s/%s exists" % (DRIPS_DIR, sorted(drips)[0])))
+
+    video_state = _status(advocacy / VIDEO_SCRIPT)
+    if video_state in _STARTED_STATES:
+        found.append(Evidence(VIDEO, "%s is %s" % (VIDEO_SCRIPT, video_state)))
+
+    if day0 is not None and today is not None:
+        _, due = campaign_dates(day0)
+        if today >= due:
+            found.append(Evidence(REVIEW_TITLE, "day 90 (%s) has arrived" % due))
+
+    return ordered(found)
+
+
+def to_create(started, existing_titles, day0=None):
+    """The started stages with no subtask yet, as rows to create in order.
+    Never a stage that has not started, and never a delete."""
+    plan = reconcile([task_by_title(e.task) for e in started], existing_titles)
+    rows = []
+    for task in plan.create:
+        due = due_on(task, day0) if day0 else None
+        rows.append({"title": task.title, "note": task.note,
+                     "due_on": due.isoformat() if due else None})
+    return rows
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        description="Print which of the seven tasks the files prove complete. "
-                    "Reads only; the Asana ticks are the caller's.")
+        description="Print which stages the files show started and which "
+                    "they prove complete. Reads only; creating and ticking "
+                    "subtasks under the parent task is the caller's.")
     parser.add_argument("--repo", required=True, help="The project's working repo.")
-    parser.add_argument("--day0", help="Day 0, YYYY-MM-DD, from the project's start_on. "
+    parser.add_argument("--day0", help="Day 0, YYYY-MM-DD, from the parent task's start_on. "
                                        "Needed only to judge the 90 day review.")
+    parser.add_argument("--today", help="YYYY-MM-DD. Defaults to the real date; "
+                                        "the review starts on day 90.")
+    parser.add_argument("--existing-titles-file", dest="existing_titles_file",
+                        help="The parent task's current subtask titles, one per "
+                             "line. Adds `create`: started stages with no subtask.")
     parser.add_argument("--config", help="Override ~/.claude/advocacy-workflow.yml.")
     args = parser.parse_args(argv)
 
@@ -231,15 +298,31 @@ def main(argv=None):
         print("%s has no advocacy/ directory; run intake first" % repo, file=sys.stderr)
         return 2
     day0 = dt.date.fromisoformat(args.day0) if args.day0 else None
+    today = dt.date.fromisoformat(args.today) if args.today else dt.date.today()
     cfg = machine_config.with_defaults(machine_config.load(args.config))
+    tracking = read_tracking(repo)
+    migrate = migration_message(tracking)
+    if migrate:
+        print("sync: %s" % migrate, file=sys.stderr)
     complete, unmatched = evidence_from(repo, cfg, day0)
-    print(json.dumps({
+    started = started_from(repo, cfg, day0, today)
+    out = {
+        "tracking": dict(tracking._asdict(), migrate=migrate),
+        "started": [item._asdict() for item in started],
         "complete": [item._asdict() for item in complete],
         "unmatched": unmatched,
         "tasks": list(TITLES),
         "files": file_states(repo),
         "drips": drip_states(repo),
-    }, indent=2))
+    }
+    if args.existing_titles_file:
+        titles_path = pathlib.Path(args.existing_titles_file)
+        if not titles_path.is_file():
+            raise ValueError("no such existing-titles file: %s" % titles_path)
+        existing = [line.strip() for line in titles_path.read_text().splitlines()
+                    if line.strip()]
+        out["create"] = to_create(started, existing, day0)
+    print(json.dumps(out, indent=2))
     return 0
 
 

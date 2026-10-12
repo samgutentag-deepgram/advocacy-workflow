@@ -157,21 +157,23 @@
 
 <h1>The advocacy workflow</h1>
 <p class="lede">One build becomes a campaign you can actually ship: a base post, six archetype
-takes, twelve social posts, a drip per shipped piece, and a video, tracked as seven flat Asana tasks
-that the files tick. Written to be read cold.</p>
+takes, twelve social posts, a drip per shipped piece, and a video, tracked as one Asana parent task
+whose stage subtasks the files create and tick. Written to be read cold.</p>
 
 <h2 id="what">What it is for</h2>
 
 <p>You finish a project. This plugin turns it into content with no task-management layer on top.
-<code>advocacy-intake</code> promotes the repo and creates the seven tasks. <code>advocacy-cycle</code>
-writes every piece from the build ledger and ticks the board from what is live.
+<code>advocacy-intake</code> promotes the repo and finds or creates its one parent task on your team's
+board. <code>advocacy-cycle</code> writes every piece from the build ledger, adds a stage subtask
+when that stage starts, and ticks it from what is live.
 <code>last-looks</code> checks everything before it leaves. Behind them: <code>x-article</code> for
 the long-form X piece and its post series, <code>script-to-video</code> for a placeholder video to
 re-record against, and the voice passes (<code>personal-style</code>, <code>corporate-style</code>,
 <code>de-slop</code>) every draft goes through.</p>
 
 <p>It needs <code>project-workflow</code> installed first. That plugin owns the repo's
-<code>.hub/</code>, the Asana project, and the ledger. This one never creates any of them.</p>
+<code>.hub/</code> and the ledger. This one never creates either, and never creates an Asana
+project: a campaign is one task on the home board you name in the config.</p>
 
 <h2 id="setup">Before you start</h2>
 
@@ -192,10 +194,11 @@ If it ships, it is snapshotted once into a public repo named <code>thing</code>,
 <code>.hub/</code> and <code>advocacy/</code> stripped from every commit.
 <code>-lab</code> is private, the bare name is public, and nothing ever flows back from the public twin.</p>
 
-<h2 id="board">The seven tasks</h2>
+<h2 id="board">One parent task, seven possible stages</h2>
 
-<p>Every promoted campaign gets one Asana project with the same seven flat tasks, no sections, no
-subtasks, in this order:</p>
+<p>Every promoted campaign is one task on the shared home board (<code>asana_home_project</code>),
+never a project of its own. Boards hold work, not people. Under the parent go at most seven stage
+subtasks, with these titles, in this order:</p>
 
 <ol class="tasks">
   <li>Public repo</li>
@@ -207,19 +210,30 @@ subtasks, in this order:</p>
   <li>90 day review (the only one with a due date: day 0 plus 90)</li>
 </ol>
 
-<p>Ticking a task is both the approval and the record. You tick by hand, or
-<code>/advocacy-cycle sync</code> ticks from the files: <code>public_repo</code> in
-<code>hub.yml</code>, a <code>published:</code> URL in a content file, a drip with six written posts,
-a dated review entry in the ledger. No script ever unticks, and there is never an eighth task. An
-exploration, a project with no day 0, has zero tasks.</p>
+<p><strong>A stage subtask exists only once its stage has started.</strong>
+<code>/advocacy-cycle sync</code> creates it the first time the files show the stage begun: a legal
+doc for Public repo, <code>blog-base.md</code> in draft for Personal blog, an
+<code>x-article.md</code> or <code>video-script.md</code> in draft, any drip file, day 90 arriving
+for the review. Corporate blog has no start signal of its own, because it is an edit of the same
+base post; it appears when a company-blog URL proves it, or you add it by hand when that edit
+begins. No placeholders, and no dates on work nobody has begun.</p>
+
+<p>Ticking a subtask is both the approval and the record. You tick by hand, or <code>sync</code>
+ticks from the files: <code>public_repo</code> in <code>hub.yml</code>, a <code>published:</code> URL
+in a content file, a drip with six written posts, a dated review entry in the ledger. No script ever
+unticks or deletes, and there is never an eighth stage. An exploration has no parent task.</p>
+
+<p>A campaign promoted before 0.5.0 points at a per-repo Asana project. <code>sync</code> refuses to
+write there and prints the migration: make the parent task, move started work under it, archive the
+old project, repoint <code>advocacy.md</code> with <code>write_advocacy.py --set-asana-url</code>.</p>
 
 <figure>
-<svg class="fig" viewBox="0 0 660 262" role="img" aria-label="What in the files ticks which of the seven tasks">
+<svg class="fig" viewBox="0 0 660 262" role="img" aria-label="What in the files ticks which stage subtask">
   <defs><marker id="gah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6"
     orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 z" class="ah"/></marker></defs>
 
   <text class="cap" x="8" y="24">THE FILES</text>
-  <text class="cap" x="380" y="24">THE SEVEN TASKS</text>
+  <text class="cap" x="380" y="24">THE STAGE SUBTASKS</text>
 
   <text class="mono" x="8" y="48">.hub/hub.yml          public_repo:</text>
   <text class="mono" x="8" y="74">blog-base.md          published: on blog_base_url</text>
@@ -256,15 +270,15 @@ is reported, not guessed. Tick that one by hand.</figcaption>
 <ol class="path">
   <li><strong>Build.</strong> <code>mkdir ~/LABS/thing-lab &amp;&amp; cd $_ &amp;&amp; git init</code>.
       Commit as you go.</li>
-  <li><strong>Make the hub.</strong> <code>/project-hub init</code> creates <code>.hub/</code> and the
-      Asana project. Log friction and decisions with <code>/project-hub capture</code> as they happen;
+  <li><strong>Make the hub.</strong> <code>/project-hub init</code> creates <code>.hub/</code>. Log friction and decisions with <code>/project-hub capture</code> as they happen;
       the ledger cannot be backfilled.</li>
   <li><strong>Promote.</strong> <code>/advocacy-intake</code> reads the repo cold, writes
-      <code>advocacy/advocacy.md</code> with one falsifiable claim and the reader, sets day 0, and
-      creates the seven tasks.</li>
+      <code>advocacy/advocacy.md</code> with one falsifiable claim and the reader, and finds or
+      creates the campaign's parent task on the home board, dated day 0 to day 90. No subtasks
+      yet.</li>
   <li><strong>Flip.</strong> Rewrite history into build order, strip <code>.hub/</code> and
       <code>advocacy/</code> from every commit, push <code>thing</code> public, then record it as
-      <code>public_repo:</code> in <code>.hub/hub.yml</code>. That line ticks Public repo.</li>
+      <code>public_repo:</code> in <code>.hub/hub.yml</code>. That line creates and ticks Public repo.</li>
   <li><strong>Start the cycle.</strong> <code>/advocacy-cycle init</code> writes
       <code>advocacy/notes.md</code> from the ledger, every fact cited, and scaffolds the three
       content files.</li>
@@ -335,11 +349,13 @@ one section each in the takes, the social pool, and every drip.</p>
 <h2 id="settings">Settings</h2>
 
 <p>All in <code>~/.claude/advocacy-workflow.yml</code>: one person, one machine, every campaign.
-The interview fills the first four; the rest are added when a skill asks for them.</p>
+The interview fills the first six; the rest are added when a skill asks for them.</p>
 
 <table>
   <tr><th>Key</th><th>What it is</th></tr>
-  <tr><td><code>asana_workspace</code></td><td>Your Asana workspace gid. The one fact the interview has to ask.</td></tr>
+  <tr><td><code>asana_workspace</code></td><td>Your Asana workspace gid.</td></tr>
+  <tr><td><code>asana_home_project</code></td><td>The board every campaign lives on as one parent task, usually your team's advocacy board.</td></tr>
+  <tr><td><code>asana_home_section</code></td><td>Optional. The section on that board new parent tasks land in.</td></tr>
   <tr><td><code>lab_root</code></td><td>Where lab repos live. Default <code>~/LABS</code>.</td></tr>
   <tr><td><code>voice_personal</code></td><td>The skill writing in your voice. Default <code>personal-style</code>; name someone else's to ghostwrite.</td></tr>
   <tr><td><code>voice_corporate</code></td><td>The company voice skill. Default <code>corporate-style</code>.</td></tr>
